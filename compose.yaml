@@ -1,0 +1,14 @@
+services:
+  fieldledger:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set an administrator password of at least 12 characters}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      APP_ORIGIN: ${APP_ORIGIN:-}
+    volumes:
+      - fieldledger-data:/app/data
+volumes:
+  fieldledger-data:
