@@ -4,7 +4,15 @@ Free, MIT-licensed, self-hosted field operations for NGOs serving informal savin
 
 ## Run the demo
 
-Install Node.js 24 or later, then run:
+Install Node.js 24 or later, then run in Bash (Git Bash on Windows):
+
+```sh
+bash quickstart.sh
+```
+
+The script checks Node.js, starts the backend, serves the frontend, and initializes the database. It works from any directory when invoked with its full path, and preserves environment settings such as `PORT`, `DATA_DIR`, and `ADMIN_PASSWORD`. Press Ctrl+C to stop.
+
+Or start directly:
 
 ```sh
 npm start
