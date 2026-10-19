@@ -5,6 +5,7 @@ import { scopedWorkspace,requireRole,groupAccess,memberAccess } from '../service
 import { enrollMember } from '../services/members.mjs';
 import { captureVisit } from '../services/visits.mjs';
 import { operations } from './operations.mjs';
+import { CURRENCIES,LANGUAGES,validMoney } from '../../shared/catalog.mjs';
 
 export function createApiRouter({repository,auth,demo}) {
   const {read,save}=repository;
@@ -32,10 +33,10 @@ export function createApiRouter({repository,auth,demo}) {
       const member=enrollMember(s,b,user);s.members.push(member);audit(s,user,`Enrolled member ${member.id}`);save(s);return json(res,201,member);
     }
     if(path==='/api/loans'&&req.method==='POST') {
-      requireRole(user,'admin','supervisor');memberAccess(s,user,b.memberId);
-      assert(money(b.principal)&&b.principal>0&&money(b.installment)&&b.installment>0&&b.installment<=b.principal&&str(b.purpose)&&date(b.date)&&['weekly','fortnightly','monthly'].includes(b.frequency),'Check loan details');
+      requireRole(user,'admin','supervisor');const member=memberAccess(s,user,b.memberId),currency=b.currency||member.currency||s.settings.currency;
+      assert(validMoney(b.principal,currency)&&b.principal>0&&validMoney(b.installment,currency)&&b.installment>0&&b.installment<=b.principal&&str(b.purpose)&&date(b.date)&&['weekly','fortnightly','monthly'].includes(b.frequency),'Check loan details and currency precision');
       assert(Math.ceil(b.principal/b.installment)<=600,'Use at most 600 installments per loan');
-      const loan={id:'LN-'+randomUUID().slice(0,8),memberId:b.memberId,principal:b.principal,installment:b.installment,purpose:b.purpose.trim(),date:b.date,frequency:b.frequency,status:'active'};
+      const loan={id:'LN-'+randomUUID().slice(0,8),currency,memberId:b.memberId,principal:b.principal,installment:b.installment,purpose:b.purpose.trim(),date:b.date,frequency:b.frequency,status:'active'};
       s.loans.push(loan);audit(s,user,`Recorded externally approved interest-free loan ${loan.id}`);save(s);return json(res,201,loan);
     }
     if(path==='/api/visits'&&req.method==='POST') {
@@ -60,9 +61,8 @@ export function createApiRouter({repository,auth,demo}) {
       }
     }
     if(path==='/api/settings'&&req.method==='POST') {
-      requireRole(user,'admin');assert(str(b.name)&&['PHP','INR','USD','KHR','IDR'].includes(b.currency)&&str(b.country),'Invalid organization settings');
-      assert(b.currency===s.settings.currency||!s.visits.length&&!s.loans.length,'Currency cannot change after financial records exist');
-      s.settings={name:b.name.trim(),currency:b.currency,country:b.country.trim(),locale:s.config.language==='fil'?'fil-PH':'en'};audit(s,user,'Updated organization settings');save(s);return json(res,200,s.settings);
+      requireRole(user,'admin');assert(str(b.name)&&CURRENCIES.includes(b.currency)&&str(b.country),'Invalid organization settings');
+      s.settings={name:b.name.trim(),currency:b.currency,country:b.country.trim(),locale:LANGUAGES.find(l=>l.code===s.config.language)?.locale||'en'};audit(s,user,'Updated organization settings (default currency applies to new records only)');save(s);return json(res,200,s.settings);
     }
     throw new ApiError('Endpoint not found',404);
   };

@@ -24,7 +24,7 @@ npm test
 
 Create a group, enroll members, record household cash flow and attest identity checks separately. Full identity numbers are never collected; only an ID type and its final four digits are stored. PAN is not mandatory.
 
-Under **Groups** or **Field visits**, choose **Group meeting** to capture attendance and collections for multiple members on one sheet. Only checked rows are submitted, and online meetings save all selected records atomically. There is one observation per member per date. Repeated submissions with matching identifiers and contents are safe to retry.
+Under **Groups** or **Field visits**, choose **Group meeting** to capture attendance and collections for multiple members on one sheet. Only checked rows are submitted, and online meetings save all selected records atomically. There is one collection per member, date and currency; another currency can be recorded separately on the same date. Repeated submissions with matching identifiers and contents are safe to retry. Attendance counts each date once across currencies, and conflicting same-date attendance observations are flagged for review.
 
 Offline meetings become individual pending observations; their eventual sync is per-record, not an atomic meeting transaction. Select a loan explicitly when recording principal repayments. Zero repayment with a selected loan records a payment observation; an absent visit does not silently invent a payment.
 
@@ -32,7 +32,7 @@ Offline meetings become individual pending observations; their eventual sync is 
 
 **Loan register → Schedule** shows installments, paid amounts, remaining principal and past-due amounts. This release supports interest-free, principal-only loans with weekly, fortnightly or monthly installments, up to 600 installments. The first installment falls one interval after the loan start date. Monthly schedules preserve the original day where possible, clamping to month end when necessary. The final installment is adjusted to the remaining cents.
 
-Payments cover the oldest installments first, including early payment toward future installments. Schedules use recorded payment dates and calculate as of the current date in the organization’s configured time zone. Amounts support up to two decimal places. Overpayments and pre-loan repayment records are rejected.
+Payments cover the oldest installments first, including early payment toward future installments. Schedules use recorded payment dates and calculate as of the current date in the organization’s configured time zone. Currency precision is enforced: for example, USD accepts two decimal places while JPY and VND accept whole amounts. Overpayments and pre-loan repayment records are rejected.
 
 **Field visits → Receipt** opens a printable receipt showing principal received, savings contributed, total and the loan balance on that date. Use **Print receipt** to print or save using the browser's PDF option. Corrected records generate a new receipt version; older printed copies must be reconciled operationally.
 
@@ -74,13 +74,25 @@ Required columns:
 name,groupId,business,income,expenses,household,earners,identityType,identitySuffix
 ```
 
-Use existing group identifiers and configured identity types. Quoted commas, escaped quotes, CRLF and UTF-8 BOM are supported. Additional configured questions use `question:Question label` headers; the downloaded template includes them. Required custom questions must be answered. Import supports member enrollment, not historical loan/transaction migration.
+Use existing group identifiers and configured identity types. The optional `currency` column sets the household budget currency; it defaults to the organization currency when omitted, and is included in the downloaded template. Quoted commas, escaped quotes, CRLF and UTF-8 BOM are supported. Additional configured questions use `question:Question label` headers; the downloaded template includes them. Required custom questions must be answered. Import supports member enrollment, not historical loan/transaction migration.
+
+### Multiple currencies
+
+Supported currencies: **PHP, INR, USD, IDR, KHR, VND, THB, MYR, SGD, HKD, CNY, BDT, NPR, LKR, JPY, KRW, EUR, GBP and AUD**.
+
+Household budgets, loans and collection entries each store their currency. A member may have loans in different currencies. A repayment must use the loan's recorded currency; savings on the same receipt use that collection currency. Record another currency as a separate entry. Existing loan and collection currencies are immutable, including during corrections. Receipts, schedules, history, offline records, CSV enrollment and encrypted backups retain explicit currency codes.
+
+The **Overview → Reporting currency** selector filters the financial totals and chart to one currency. Member and attendance counts continue to cover the whole accessible community. Group and member savings display separate currency subtotals. Currency codes are shown alongside amounts, so dollar symbols are not ambiguous. There is no exchange-rate lookup, conversion or combined cross-currency grand total.
+
+The organization currency is a default for new records, not a display conversion. Changing it does not relabel household budgets, loans, or collections already recorded. Existing databases migrate their old amounts using their original organization currency. The migration retains `data/before-multicurrency.sqlite` (or the corresponding file inside your `DATA_DIR`) before rebuilding the collection uniqueness constraint, and checks foreign-key integrity before committing. Keep this file protected like any other database backup.
 
 ### Forms and language
 
 **Organization → Configure forms & language** controls the organization’s time zone, accepted ID types and up to ten additional enrollment questions. The initial time zone is `Asia/Manila`; use a valid IANA name such as `Asia/Kolkata` or `Asia/Jakarta` for another region. Questions can be text or numeric, optional or required. Existing answers and their captured question labels remain with member records if the form changes.
 
-The initial languages are English and Filipino. Filipino covers navigation, shared actions and core enrollment/visit labels; longer explanatory text and some operational dialogs remain English. User names, field notes, and organization-defined question labels are preserved verbatim. Translation review with field officers is still needed before a local-language pilot.
+The language selector is available on the sign-in screen and in the workspace header. Supported languages are **English, Filipino, Hindi, Bengali, Indonesian, Vietnamese, Thai and Traditional Chinese**. Preferences are stored per workspace/account in the current browser, independently of the organization default language. Selecting a language does not modify member data or monetary values. Number and date formatting follows the selected locale.
+
+Fixed translations cover navigation, shared actions, core enrollment/visit fields, money labels and common workflow controls. Longer guidance, some dynamic sentences and server validation errors still fall back to English. Switching back to English restores source labels. User names, field notes, and organization-defined question labels are preserved verbatim. Translations are bundled for offline use and do not call a paid or external translation service. Translation review with field officers is still needed before a local-language pilot.
 
 ### Consent and sharing
 
@@ -131,7 +143,7 @@ npm start
 
 Or copy `.env.example` to `.env`, set a unique password, and run `docker compose up --build -d`. Compose uses a named volume and binds to loopback. For other devices, use an HTTPS reverse proxy, `COOKIE_SECURE=true`, and, where needed, `APP_ORIGIN=https://your-ngo-host`.
 
-Environment: `PORT` (3000), `HOST` (127.0.0.1), `DATA_DIR` (`./data`), `NODE_ENV`, `DEMO_MODE`, `ADMIN_PASSWORD`, `COOKIE_SECURE`, `APP_ORIGIN`. Production always disables the demo. Sessions expire after eight hours and clear on server restart. Currency is locked once loan or collection records exist; values are not converted automatically.
+Environment: `PORT` (3000), `HOST` (127.0.0.1), `DATA_DIR` (`./data`), `NODE_ENV`, `DEMO_MODE`, `ADMIN_PASSWORD`, `COOKIE_SECURE`, `APP_ORIGIN`. Production always disables the demo. Sessions expire after eight hours and clear on server restart. Each financial record keeps its original currency; changing the default does not convert or relabel it.
 
 ## Structure
 
@@ -140,7 +152,8 @@ frontend/public/
   app.js              Core pages and forms
   features.js         Operations screens and UI integration
   offline.js          Passphrase-protected device vault
-  i18n.js             Initial Filipino interface translations
+  i18n.js             Language preferences and reversible translation
+  translations.js     Bundled interface translations for eight languages
   styles.css          Responsive UI and receipt print layout
   sw.js               Offline app shell
 backend/
@@ -153,6 +166,7 @@ database/
   migrations/         Versioned relational schema
   repository.mjs      SQLite access and atomic persistence
   seed.mjs            Synthetic fixtures
+shared/catalog.mjs    Supported currencies/languages, formatting and precision
 tests/                Permissions, workflow, encryption and persistence tests
 data/                 Ignored local runtime database
 ```

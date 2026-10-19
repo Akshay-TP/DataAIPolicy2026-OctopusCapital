@@ -8,6 +8,7 @@ import { encryptBackup } from '../services/backup.mjs';
 import { parseCsv } from '../services/csv.mjs';
 import { enrollMember } from '../services/members.mjs';
 import { localDate } from '../services/dates.mjs';
+import { LANGUAGES } from '../../shared/catalog.mjs';
 
 export function operations({req,res,url,b,s,user,repository,demo,audit}) {
   const path=url.pathname,method=req.method;
@@ -43,7 +44,7 @@ export function operations({req,res,url,b,s,user,repository,demo,audit}) {
     if(m[2]==='receipt'&&method==='GET') {
       const loan=s.loans.find(l=>l.id===visit.loanId);
       const balanceOnDate=loan?amount(Math.max(0,cents(loan.principal)-s.visits.filter(v=>v.loanId===loan.id&&v.date<=visit.date).reduce((n,v)=>n+cents(v.paid),0))):null;
-      json(res,200,{number:`FL-${visit.id}`,version:visit.version,organization:s.settings.name,currency:s.settings.currency,member:{id:member.id,name:member.name},date:visit.date,officer:visit.officer,paid:visit.paid,savings:visit.savings,total:amount(cents(visit.paid)+cents(visit.savings)),loanId:visit.loanId,loanBalanceOnDate:balanceOnDate,corrected:visit.version>1});return true;
+      json(res,200,{number:`FL-${visit.id}`,version:visit.version,organization:s.settings.name,currency:visit.currency,member:{id:member.id,name:member.name},date:visit.date,officer:visit.officer,paid:visit.paid,savings:visit.savings,total:amount(cents(visit.paid)+cents(visit.savings)),loanId:visit.loanId,loanBalanceOnDate:balanceOnDate,corrected:visit.version>1});return true;
     }
   }
   m=path.match(/^\/api\/loans\/([^/]+)\/schedule$/);
@@ -78,10 +79,10 @@ export function operations({req,res,url,b,s,user,repository,demo,audit}) {
   }
   if(path==='/api/backup'&&method==='POST') {
     requireRole(user,'admin');assert(str(b.password,12,200),'Use a backup passphrase of 12–200 characters');
-    save('Created encrypted workspace backup');json(res,200,encryptBackup({schema:2,createdAt:new Date().toISOString(),workspace:s,staff:repository.listStaff(true)},b.password));return true;
+    save('Created encrypted workspace backup');json(res,200,encryptBackup({schema:3,createdAt:new Date().toISOString(),workspace:s,staff:repository.listStaff(true)},b.password));return true;
   }
   if(path==='/api/config'&&method==='POST') {
-    requireRole(user,'admin');assert(['en','fil'].includes(b.language)&&Array.isArray(b.acceptedIds)&&b.acceptedIds.length>0&&b.acceptedIds.length<=15&&b.acceptedIds.every(id=>str(id,1,80)),'Choose a supported language and 1–15 accepted ID types');
+    requireRole(user,'admin');assert(LANGUAGES.some(l=>l.code===b.language)&&Array.isArray(b.acceptedIds)&&b.acceptedIds.length>0&&b.acceptedIds.length<=15&&b.acceptedIds.every(id=>str(id,1,80)),'Choose a supported language and 1–15 accepted ID types');
     const timeZone=b.timeZone||s.config.timeZone;assert(str(timeZone,1,80),'Choose a time zone');try{localDate(timeZone);}catch{assert(false,'Invalid time zone');}
     assert(Array.isArray(b.questions)&&b.questions.length<=10&&b.questions.every(q=>str(q.label,1,80)&&['text','number'].includes(q.type)&&typeof q.required==='boolean'),'Up to 10 valid custom questions supported');
     const questions=b.questions.map(q=>({id:q.id&&s.config.questions.some(old=>old.id===q.id)?q.id:randomUUID(),label:q.label.trim(),type:q.type,required:q.required}));

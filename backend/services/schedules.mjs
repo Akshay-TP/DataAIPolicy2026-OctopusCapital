@@ -21,5 +21,5 @@ export function schedule(loan, visits, asOf=new Date().toISOString().slice(0,10)
     rows.push({number:index,dueDate,due:amount(due),paid:amount(paid),remaining:amount(due-paid),status:paid===due?'paid':dueDate>asOf?'upcoming':paid>0?'partial':dueDate===asOf?'due':'overdue'});
   }
   const arrears=rows.filter(r=>r.dueDate<asOf).reduce((n,r)=>n+cents(r.remaining),0);
-  return {loanId:loan.id,asOf,totalPaid:amount(totalPaid),balance:amount(Math.max(0,principal-totalPaid)),arrears:amount(arrears),rows};
+  return {loanId:loan.id,currency:loan.currency||'PHP',asOf,totalPaid:amount(totalPaid),balance:amount(Math.max(0,principal-totalPaid)),arrears:amount(arrears),rows};
 }

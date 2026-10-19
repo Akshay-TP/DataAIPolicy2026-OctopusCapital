@@ -5,6 +5,7 @@ COPY --chown=node:node package.json ./
 COPY --chown=node:node backend ./backend
 COPY --chown=node:node database ./database
 COPY --chown=node:node frontend ./frontend
+COPY --chown=node:node shared ./shared
 RUN mkdir -p /app/data && chown node:node /app/data
 USER node
 EXPOSE 3000

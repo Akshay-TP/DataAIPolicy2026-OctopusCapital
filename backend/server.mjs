@@ -14,8 +14,8 @@ if(!demo && (!process.env.ADMIN_PASSWORD || process.env.ADMIN_PASSWORD.length<12
 const repository=openRepository({dataDir:resolve(process.env.DATA_DIR||resolve(root,'data')),demo});
 const auth=createAuth({demo,password:process.env.ADMIN_PASSWORD,secureCookie:process.env.COOKIE_SECURE==='true',repository});
 const routeApi=createApiRouter({repository,auth,demo});
-const files={'/':'index.html','/app.js':'app.js','/features.js':'features.js','/offline.js':'offline.js','/i18n.js':'i18n.js','/styles.css':'styles.css','/sw.js':'sw.js','/manifest.webmanifest':'manifest.webmanifest'};
-const types={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.webmanifest':'application/manifest+json'};
+const files={'/shared/catalog.mjs':'catalog.mjs','/':'index.html','/app.js':'app.js','/features.js':'features.js','/offline.js':'offline.js','/i18n.js':'i18n.js','/translations.js':'translations.js','/styles.css':'styles.css','/sw.js':'sw.js','/manifest.webmanifest':'manifest.webmanifest'};
+const types={'.mjs':'text/javascript; charset=utf-8','.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.webmanifest':'application/manifest+json'};
 const server=http.createServer(async(req,res)=>{
   res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('X-Frame-Options','DENY');res.setHeader('Referrer-Policy','same-origin');
   res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
@@ -31,7 +31,7 @@ const server=http.createServer(async(req,res)=>{
     }
     assert(['GET','HEAD'].includes(req.method),'Method not allowed',405);
     assert(files[path],'Not found',404);
-    const file=await readFile(resolve(root,'frontend/public',files[path]));
+    const file=await readFile(path==='/shared/catalog.mjs'?resolve(root,'shared/catalog.mjs'):resolve(root,'frontend/public',files[path]));
     res.writeHead(200,{'Content-Type':types[extname(files[path])],'Cache-Control':'no-cache'});res.end(req.method==='HEAD'?undefined:file);
   } catch(e){json(res,e.status||500,{error:e.status?e.message:'An unexpected server error occurred'});if(!e.status)console.error(e);}
 });
