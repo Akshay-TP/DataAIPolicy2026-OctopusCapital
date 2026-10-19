@@ -1,63 +1,123 @@
 # FieldLedger
 
-Free, MIT-licensed, self-hosted field operations for NGOs serving informal savings and group lending communities. Inspired by the verification workflows described in the Sahayog interview; Sahayog is a research reference, not the customer or a connected banking provider.
+Free, MIT-licensed, self-hosted field operations for NGOs serving informal savings and group lending communities. Sahayog's interview informs the workflows; it is a research reference, not a connected banking provider or the app's customer.
 
-## Run the demo
+## Quickstart
 
-Install Node.js 24 or later, then run in Bash (Git Bash on Windows):
+Install **Node.js 24 or later**, then run in Bash (Git Bash on Windows):
 
 ```sh
 bash quickstart.sh
 ```
 
-The script checks Node.js, starts the backend, serves the frontend, and initializes the database. It works from any directory when invoked with its full path, and preserves environment settings such as `PORT`, `DATA_DIR`, and `ADMIN_PASSWORD`. Press Ctrl+C to stop.
+Or run `npm start`. Open **http://127.0.0.1:3000** and choose **Open demo workspace**. The script works from any directory when invoked with its full path. No packages, paid APIs or cloud accounts are required. Press Ctrl+C to stop.
 
-Or start directly:
-
-```sh
-npm start
-```
-
-Open http://127.0.0.1:3000 and choose **Explore the demo**. No dependencies or paid services are needed. The fictional Bayanihan Community Foundation workspace includes 24 synthetic members, 3 groups, 18 loans, and eight visits per member. Changes persist in `data/fieldledger.sqlite`. Demo login is intentionally passwordless and binds to loopback by default.
+The demo starts with 24 synthetic members, three groups, 18 loans and eight observations per member. Changes persist locally in `data/fieldledger.sqlite`. Demo login is intentionally passwordless and binds to loopback. Existing workspaces migrate automatically without dropping their records.
 
 ```sh
 npm test
 ```
 
-## What works
+## Daily workflows
 
-- Group setup and member enrollment with household income, expenses, earners and masked identity reference; identity checks require a separate officer attestation.
-- Principal-only loan register, repayment frequency, remaining principal, and scheduled installment observations. Approval happens outside the app.
-- Field visits recording attendance, principal repayment, savings contributions, utilisation checks and notes.
-- Indicators calculated from records, with denominators and readable follow-up reasons. Missing observations remain unknown; there is no composite credit score or automated credit decision.
-- Explicit member permission naming a recipient and purpose; 30-day expiry, revocation, and minimized JSON export with an audit event. Export omits document references, full visit notes and household composition.
-- Offline app shell, synthetic demo cache, local pending visit queue, and automatic sync after reconnect. Server-issued IDs and idempotent visit submission prevent retry duplicates. Records rejected by the server remain in the local queue.
-- Organization settings, activity history, server-side SQLite persistence, and administrator authentication.
+### Members and group meetings
 
-## Project structure
+Create a group, enroll members, record household cash flow and attest identity checks separately. Full identity numbers are never collected; only an ID type and its final four digits are stored. PAN is not mandatory.
+
+Under **Groups** or **Field visits**, choose **Group meeting** to capture attendance and collections for multiple members on one sheet. Only checked rows are submitted, and online meetings save all selected records atomically. There is one observation per member per date. Repeated submissions with matching identifiers and contents are safe to retry.
+
+Offline meetings become individual pending observations; their eventual sync is per-record, not an atomic meeting transaction. Select a loan explicitly when recording principal repayments. Zero repayment with a selected loan records a payment observation; an absent visit does not silently invent a payment.
+
+### Repayment schedules and receipts
+
+**Loan register → Schedule** shows installments, paid amounts, remaining principal and past-due amounts. This release supports interest-free, principal-only loans with weekly, fortnightly or monthly installments, up to 600 installments. The first installment falls one interval after the loan start date. Monthly schedules preserve the original day where possible, clamping to month end when necessary. The final installment is adjusted to the remaining cents.
+
+Payments cover the oldest installments first, including early payment toward future installments. Schedules use recorded payment dates and calculate as of the current date in the organization’s configured time zone. Amounts support up to two decimal places. Overpayments and pre-loan repayment records are rejected.
+
+**Field visits → Receipt** opens a printable receipt showing principal received, savings contributed, total and the loan balance on that date. Use **Print receipt** to print or save using the browser's PDF option. Corrected records generate a new receipt version; older printed copies must be reconciled operationally.
+
+### Corrections and case management
+
+Administrators and supervisors can **Correct** a field observation. A reason is mandatory. Original and revised values, actor, timestamp and record version are retained in **History**. Stale edits are rejected rather than overwriting someone else's correction. Member, loan and date attribution remain fixed; correction currently covers attendance, amounts, utilisation and notes. Records are not deleted.
+
+**Follow-up cases** supports assignment, a due date, open/in-progress/resolved states, and resolution notes. Start a case from a member profile or the case list. Officers assign cases to themselves; supervisors and administrators can assign an active officer responsible for the member's group or another supervisor/administrator. A resolved case requires a written outcome. Cases can be reopened.
+
+### Staff accounts and permissions
+
+The server administrator uses username **admin** and the server's `ADMIN_PASSWORD`. In demo mode, **Open demo workspace** signs in as the demonstration administrator. The administrator account cannot be disabled through the interface.
+
+| Role | Access |
+| --- | --- |
+| Administrator | All groups and workflows; staff accounts, form configuration, organization settings and encrypted backups. |
+| Supervisor | All groups; enrollment, approved-loan registration, meetings, corrections, follow-ups, consent-controlled profile exports and CSV member import. Cannot manage accounts, organization configuration or backups. |
+| Field officer | Assigned groups only; enrollment, identity attestations, observations, receipts, schedules, consent logging and their assigned follow-up cases. Cannot approve/register loans, correct server records, export member profiles, import CSV or create staff. |
+
+Use **Staff accounts** to create accounts, assign groups, change roles, reset passwords or disable access. Staff passwords require 12–200 characters and use salted scrypt hashes. Existing sessions recheck current account status and permissions on every request, so disabling an account blocks its session immediately. Staff can sign in from the sign-in form, including in demo mode. Initial credentials must be shared by the NGO; no email delivery is configured. Enforce HTTPS for non-local use.
+
+### Protected offline records
+
+Before losing connectivity, open **Offline records → Unlock records** and enter a device passphrase of at least 12 characters. An already-open workspace can then prepare single or group observations offline. Pending records are encrypted in browser storage with AES-GCM; the key is derived with PBKDF2-SHA-256 (210,000 iterations) and retained only in memory. Each account/workspace has a separate vault. Passphrases are never sent to the server.
+
+The vault locks on reload or sign-out. Use the same passphrase to recover pending records. There is no passphrase recovery. Signing out preserves the encrypted vault. Device locking, browser isolation and trusted software still matter; this is not protection against a compromised device or malicious code running in an unlocked session.
+
+Reconnect, sign in and unlock the vault, then choose **Sync now**. Each successful item is removed only after server acknowledgment. Failed records remain with individual error messages; other records can still sync. Use **Review / edit** to correct the pending date, loan, amounts or notes, or explicitly discard a checked duplicate. Server records are never overwritten by the queue. Earlier unencrypted `fl-queue` records can be migrated by the administrator after unlocking the new vault; legacy data is removed only after successful encryption.
+
+The app shell is cached offline. Only synthetic demo workspace data is cached in full for offline reopening. Real workspace pages must already be open before going offline; full private offline reopening is not implemented. A valid server session is required to sync. Service workers and Web Crypto require HTTPS except on localhost.
+
+### CSV import
+
+Under **Members → Import CSV**, download the template, choose a file, preview validation, then import. Files are limited to 80 KB and 200 members. The preview shows row errors and the first five valid members. Import is all-or-nothing, rejects duplicate names within a group, and does not attest identity or grant sharing permission.
+
+Required columns:
 
 ```text
-frontend/
-  public/                  Browser UI, styles, offline service worker
-backend/
-  server.mjs               HTTP entry point and static frontend delivery
-  routes/api.mjs           Authenticated JSON API and workflow validation
-  middleware/http.mjs      Request parsing, responses, input helpers
-  services/auth.mjs        Sessions, passwords, login throttling
-  services/indicators.mjs  Descriptive indicators and follow-up rules
-database/
-  migrations/001_initial.sql  Relational schema, foreign keys, constraints, indexes
-  repository.mjs           SQLite access, migrations, atomic persistence
-  seed.mjs                 Synthetic demonstration fixtures
-tests/                     Indicator, persistence, and API integration tests
-data/                      Local runtime database (ignored by Git)
+name,groupId,business,income,expenses,household,earners,identityType,identitySuffix
 ```
 
-The frontend talks exclusively to `/api/` over HTTP; it never imports backend or database modules. API routes use the database repository; SQL lives in `database/`. Organization, groups, members, consent, loans, visits and audit events have separate relational tables. One Node process serves both layers for easy NGO installation, while the source and data boundaries remain distinct. The repository uses synchronous atomic transactions; this MVP is intended for a single application process, not multiple concurrent application replicas.
+Use existing group identifiers and configured identity types. Quoted commas, escaped quotes, CRLF and UTF-8 BOM are supported. Additional configured questions use `question:Question label` headers; the downloaded template includes them. Required custom questions must be answered. Import supports member enrollment, not historical loan/transaction migration.
+
+### Forms and language
+
+**Organization → Configure forms & language** controls the organization’s time zone, accepted ID types and up to ten additional enrollment questions. The initial time zone is `Asia/Manila`; use a valid IANA name such as `Asia/Kolkata` or `Asia/Jakarta` for another region. Questions can be text or numeric, optional or required. Existing answers and their captured question labels remain with member records if the form changes.
+
+The initial languages are English and Filipino. Filipino covers navigation, shared actions and core enrollment/visit labels; longer explanatory text and some operational dialogs remain English. User names, field notes, and organization-defined question labels are preserved verbatim. Translation review with field officers is still needed before a local-language pilot.
+
+### Consent and sharing
+
+Named member profile exports require a recorded recipient, purpose and explicit member attestation. Permission expires after 30 days and can be revoked. Only supervisors and administrators export profiles. Exports omit identity references, full observation notes and household composition. Revocation blocks future exports; downloaded copies cannot be recalled. These descriptive JSON profiles are not signed credentials or credit approvals.
+
+## Back up and restore
+
+Administrators can use **Organization → Download backup**. Choose a 12–200 character passphrase. The JSON archive contains an authenticated AES-256-GCM encrypted snapshot of records, staff password hashes and assignments, form configuration, cases and correction history. A scrypt-derived key protects the archive. Keep the passphrase separately; it cannot be recovered. The server administrator password is not included and must be set on the restored server.
+
+Restore into a **new data directory**, with the application stopped. Existing databases are never overwritten. The restore command authenticates the encrypted archive, restores the records, and verifies member/visit counts. The tests exercise a full export/restore including staff, case resolution and correction history.
+
+Bash:
+
+```sh
+BACKUP_FILE=/path/to/fieldledger-backup.json \
+BACKUP_PASSWORD='your-backup-passphrase' \
+DATA_DIR=./restored-data npm run restore
+```
+
+PowerShell:
+
+```powershell
+$env:BACKUP_FILE='C:/path/to/fieldledger-backup.json'
+$env:BACKUP_PASSWORD='your-backup-passphrase'
+$env:DATA_DIR='./restored-data'
+npm run restore
+```
+
+Set `DATA_DIR` to the restored directory and start the app with the usual production variables. Remove backup passphrases from the shell environment afterward. `backups/` is ignored by Git; keep exported archives outside source control. Alternatively, stop the app and copy the entire SQLite data directory or Docker volume as a protected filesystem backup.
 
 ## Self-host an empty workspace
 
-Production starts without synthetic groups or members. Use a separate data directory from the demo.
+Use a separate directory from the demo:
+
+```sh
+NODE_ENV=production DEMO_MODE=false ADMIN_PASSWORD='your-long-unique-password' DATA_DIR=./private-data bash quickstart.sh
+```
 
 PowerShell:
 
@@ -69,37 +129,44 @@ $env:DATA_DIR='./private-data'
 npm start
 ```
 
-Linux:
+Or copy `.env.example` to `.env`, set a unique password, and run `docker compose up --build -d`. Compose uses a named volume and binds to loopback. For other devices, use an HTTPS reverse proxy, `COOKIE_SECURE=true`, and, where needed, `APP_ORIGIN=https://your-ngo-host`.
 
-```sh
-NODE_ENV=production DEMO_MODE=false ADMIN_PASSWORD='your-long-unique-password' DATA_DIR=./private-data npm start
+Environment: `PORT` (3000), `HOST` (127.0.0.1), `DATA_DIR` (`./data`), `NODE_ENV`, `DEMO_MODE`, `ADMIN_PASSWORD`, `COOKIE_SECURE`, `APP_ORIGIN`. Production always disables the demo. Sessions expire after eight hours and clear on server restart. Currency is locked once loan or collection records exist; values are not converted automatically.
+
+## Structure
+
+```text
+frontend/public/
+  app.js              Core pages and forms
+  features.js         Operations screens and UI integration
+  offline.js          Passphrase-protected device vault
+  i18n.js             Initial Filipino interface translations
+  styles.css          Responsive UI and receipt print layout
+  sw.js               Offline app shell
+backend/
+  server.mjs          HTTP entry point and frontend delivery
+  routes/             Core API and operational endpoints
+  middleware/         Parsing, responses and validation helpers
+  services/           Authentication, access, schedules, visits, CSV and backups
+  scripts/restore.mjs Encrypted archive restoration into a new database
+database/
+  migrations/         Versioned relational schema
+  repository.mjs      SQLite access and atomic persistence
+  seed.mjs            Synthetic fixtures
+tests/                Permissions, workflow, encryption and persistence tests
+data/                 Ignored local runtime database
 ```
 
-Alternatively, copy `.env.example` to `.env`, set a unique administrator password, and run `docker compose up --build -d`. Compose binds only to loopback and stores records in a named volume. Put an HTTPS reverse proxy in front for other devices; set `COOKIE_SECURE=true` for HTTPS. Service workers and offline capture need HTTPS except on localhost. No automatic publication or external data transfer is configured.
+The frontend uses only HTTP API endpoints and never imports server/database modules. SQL stays in `database/`. One Node process serves both layers; synchronous repository transactions support single-process operation, not concurrent application replicas. Migrations preserve records from earlier prototypes.
 
-Environment variables: `PORT` (3000), `HOST` (127.0.0.1), `DATA_DIR` (`./data`), `ADMIN_PASSWORD` (required outside demo), `DEMO_MODE` (`false` disables demo), `NODE_ENV`, `COOKIE_SECURE`. Production disables demo regardless of `DEMO_MODE`. Keep the password out of source control. The password hash is derived at startup; sessions are held in memory, expire after 8 hours, and clear on restart.
+## Indicators and limits
 
-To back up this prototype, stop the application and copy the entire data directory or Docker volume. Restore it while the app is stopped. Keep backups protected. Do not change currency after recording transactions: preferences change labels, not values.
+Attendance is present observations divided by all observations except “not recorded”; excused absences remain in the denominator. Full scheduled payments measures recorded payment observations paid in full, separately from the date-based repayment schedule. Savings are contributions only, with no withdrawals or deposit-account accounting. Surplus is self-reported monthly household income minus expenses, before loan payments. Missing observations remain unknown.
 
-## Product scope and source interpretation
+Follow-up flags use visible demonstration thresholds: fewer than four observations, attendance below 80%, full recorded payments below 90%, non-positive surplus, pending identity, or utilisation follow-up. These are not validated lending policy. No composite credit score or automatic credit decision is produced.
 
-The user's NGO/self-hosting direction and `OctopusCapital_Phase2_Submission.docx` define this implementation: low-cost structured field capture and explainable group/member profiles for smaller organizations. The final submission PDF instead emphasizes portable credentials. This MVP includes consent-controlled exports as a bridge, but does not claim to implement verified credentials or reciprocal lender acceptance. Submission-form instructions in the supplied documents are reference material, not actions executed by the app.
+This remains an MVP, not a production core banking system: no double-entry accounting, interest/fee models, restructuring, disbursement rails, external KYC, signed credentials or Finacle/BR.NET integration. The application audit log and correction history are not tamper-evident against a database administrator. Production still needs operational monitoring, deployment review, field testing, device policy and an appropriate data-governance process. SQLite may emit Node's experimental API warning.
 
-The interview informs group meetings, cash-flow review, identity verification without mandatory PAN, attendance, utilisation monitoring and repeated visits. It does not establish that attendance alone predicts creditworthiness. Dashboard quantities describe only this workspace and are not Sahayog portfolio figures. The scanned document had no extractable text; no product requirements were inferred from it. No source documents or partner contact information are bundled into the web app.
+## Source interpretation
 
-## Indicator definitions
-
-- Attendance = present / all observations except “not recorded.” Excused absence stays in the denominator; missing dates are not inferred.
-- Full scheduled payments = observations paid at least the recorded installment / observations with dues. This records visit-level completeness, not contractual delinquency or payment timing inferred from a separate schedule.
-- Savings = sum of recorded contributions. There are no withdrawals, interest or deposit-account accounting.
-- Surplus = self-reported monthly household income minus expenses, before loan payments.
-- Loan balance = principal minus repayments explicitly attributed to that loan, floored at zero. Overpayments are rejected. No interest or fee model.
-- Follow-up reasons: fewer than 4 visits; attendance below 80%; full payments below 90%; non-positive surplus; utilisation follow-up; pending identity. These are visible demonstration thresholds, not validated lending policy. Group attendance is not a proxy for personal worth.
-
-## Prototype limits before real member use
-
-This is a functional MVP, not a production core banking system. It has one administrator role, no fine-grained user permissions, no accounting double entry, loan restructuring, interest calculation, disbursements, arrears calendar, KYC service integration, signed credentials, or connection to Finacle/BR.NET. Audit history is application-level and not tamper-evident. Consent is an officer-recorded attestation, not a digital signature; downloaded exports cannot be recalled.
-
-Offline pending observations are unencrypted browser storage. Real workspace records are not cached in full across reloads; an already-open page can prepare visits offline, but only demo data is cached for offline reopening. Device loss, shared browsers and expired sessions need an operational policy. Synced queues are cleared; signing out clears the demo cache and requires pending visits to be synced first. No queue correction interface is included yet; validation conflicts require an administrator to resolve before sync can continue.
-
-Before live deployment, add staff accounts and role permissions, protected device storage, record correction workflows, tested backup/restore, monitoring, a documented lending policy and appropriate local privacy review. Application security includes HttpOnly/SameSite cookies, same-origin mutations, JSON-only writes, bounded/validated inputs, login throttling, HTML escaping, CSP, no third-party scripts, and SQL parameterization. SQLite uses Node's built-in `node:sqlite`, which may emit an experimental API warning.
+The user's NGO/self-hosting direction and `OctopusCapital_Phase2_Submission.docx` define the product scope. The final submission PDF instead emphasizes portable credentials; consent-controlled exports provide a bridge without claiming cryptographic verifiability or lender acceptance. Instructions in submission forms were reference material, not actions executed by the app. The scanned PDF had no extractable text; no requirements were inferred from it. Source documents and partner contact information are not bundled into the web app.

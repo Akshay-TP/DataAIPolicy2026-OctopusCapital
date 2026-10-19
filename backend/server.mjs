@@ -12,9 +12,9 @@ const port=Number(process.env.PORT||3000), host=process.env.HOST||'127.0.0.1';
 const demo=process.env.DEMO_MODE!=='false' && process.env.NODE_ENV!=='production';
 if(!demo && (!process.env.ADMIN_PASSWORD || process.env.ADMIN_PASSWORD.length<12)) throw new Error('Set ADMIN_PASSWORD to at least 12 characters when demo mode is disabled.');
 const repository=openRepository({dataDir:resolve(process.env.DATA_DIR||resolve(root,'data')),demo});
-const auth=createAuth({demo,password:process.env.ADMIN_PASSWORD,secureCookie:process.env.COOKIE_SECURE==='true'});
+const auth=createAuth({demo,password:process.env.ADMIN_PASSWORD,secureCookie:process.env.COOKIE_SECURE==='true',repository});
 const routeApi=createApiRouter({repository,auth,demo});
-const files={'/':'index.html','/app.js':'app.js','/styles.css':'styles.css','/sw.js':'sw.js','/manifest.webmanifest':'manifest.webmanifest'};
+const files={'/':'index.html','/app.js':'app.js','/features.js':'features.js','/offline.js':'offline.js','/i18n.js':'i18n.js','/styles.css':'styles.css','/sw.js':'sw.js','/manifest.webmanifest':'manifest.webmanifest'};
 const types={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.webmanifest':'application/manifest+json'};
 const server=http.createServer(async(req,res)=>{
   res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('X-Frame-Options','DENY');res.setHeader('Referrer-Policy','same-origin');

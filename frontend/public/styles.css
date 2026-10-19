@@ -345,3 +345,55 @@ dialog::backdrop { background: #17233466; backdrop-filter: blur(2px); }
 @media (prefers-reduced-motion: reduce) {
   * { scroll-behavior: auto !important; transition: none !important; }
 }
+
+/* Operational workflows: meeting sheets, receipts, and device records. */
+.nav { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: thin; }
+.sidebar-bottom { flex-shrink: 0; }
+.sidebar .org { margin-top: 25px; margin-bottom: 20px; padding-bottom: 20px; }
+.ownership { margin-top: 15px; margin-bottom: 18px; }
+.visit-item { flex-wrap: wrap; }
+.visit-actions { width: 100%; justify-content: flex-end; gap: 18px; }
+.visit-actions .text-btn { font-size: 11px; }
+.wide-dialog { max-width: 1020px; }
+#meeting-form .table-wrap { margin-top: 20px; }
+#meeting-form td { padding: 12px; }
+#meeting-form th { padding: 12px; }
+#meeting-form td:first-child { min-width: 180px; }
+#meeting-form td input[type=number] { width: 95px; }
+#meeting-form input, #meeting-form select { padding: 9px; border: 1px solid #d7d5cc; border-radius: 4px; background: var(--white); }
+#meeting-form input[type=checkbox] { accent-color: var(--accent); }
+.receipt-sheet { padding: 8px 0 20px; }
+.receipt-brand { font-size: 12px; color: var(--muted); border-bottom: 1px solid var(--line); padding-bottom: 18px; }
+.receipt-sheet h3 { font-size: 26px; font-weight: 500; margin-bottom: 20px; }
+.receipt-sheet p { font-size: 13px; line-height: 1.8; }
+.receipt-lines { margin: 25px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.receipt-lines > div { display: flex; justify-content: space-between; gap: 20px; font-size: 13px; padding: 15px 0; }
+.receipt-lines strong { font-weight: 600; font-variant-numeric: tabular-nums; }
+.receipt-lines .receipt-total { border-top: 1px solid var(--line); font-size: 17px; }
+.history-entry { padding-bottom: 22px; margin-bottom: 20px; border-bottom: 1px solid var(--line); }
+.history-entry p { font-size: 13px; line-height: 1.8; }
+.history-entry td { white-space: normal; overflow-wrap: anywhere; }
+.field fieldset, fieldset.field { border: 1px solid var(--line); padding: 15px; border-radius: 4px; }
+.question-row { display: grid; grid-template-columns: minmax(120px,1fr) 100px auto auto; gap: 10px; align-items: center; margin: 12px 0; }
+.question-row .check { white-space: nowrap; align-items: center; }
+.question-row input[type=checkbox] { width: auto; min-height: 0; }
+.staff-signin { border-top: 1px solid var(--line); margin-top: 25px; padding-top: 20px; }
+.staff-signin summary { font-size: 12px; color: #76634f; cursor: pointer; }
+.staff-signin .field { margin-top: 18px; }
+.form-error:empty { display: none; }
+@media (max-width: 700px) {
+  .question-row { grid-template-columns: 1fr 90px; border-bottom: 1px solid var(--line); padding-bottom: 13px; }
+  .question-row .check { font-size: 11px; }
+  .receipt-lines > div { font-size: 12px; }
+  .visit-actions { justify-content: flex-start; }
+  .settings-grid .actions { flex-wrap: wrap; }
+}
+@media print {
+  @page { margin: 18mm; }
+  body { background: white; color: black; }
+  body > * { display: none !important; }
+  body > dialog.printable[open] { display: block !important; position: static; margin: 0; width: 100%; max-width: none; max-height: none; overflow: visible; border: 0; box-shadow: none; background: white; }
+  dialog.printable .modal-head, dialog.printable .form-actions { display: none; }
+  dialog.printable .modal-body { padding: 0; }
+  dialog::backdrop { display: none; }
+}

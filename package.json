@@ -5,6 +5,6 @@
   "type": "module",
   "description": "Free, self-hosted field operations and group lending records for NGOs",
   "engines": { "node": ">=24.0.0" },
-  "scripts": { "start": "node backend/server.mjs", "dev": "node --watch backend/server.mjs", "test": "node --test tests/*.test.mjs" },
+  "scripts": { "start": "node backend/server.mjs", "dev": "node --watch backend/server.mjs", "test": "node --test tests/*.test.mjs", "restore": "node backend/scripts/restore.mjs" },
   "license": "MIT"
 }

@@ -1,5 +1,6 @@
 data/
 private-data/
+backups/
 tmp/
 node_modules/
 .env
