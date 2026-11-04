@@ -1,3 +1,4 @@
+import {certificateRoutes} from './certificates.mjs';
 import {supportRoutes} from './support.mjs';
 import { randomUUID } from 'node:crypto';
 import { indicators,reviewReasons } from '../services/indicators.mjs';
@@ -9,11 +10,12 @@ import { operations } from './operations.mjs';
 import { healthRoutes } from './health.mjs';
 import { CURRENCIES,LANGUAGES,validMoney } from '../../shared/catalog.mjs';
 
-export function createApiRouter({repository,auth,demo}) {
+export function createApiRouter({repository,auth,demo,authority}) {
   const {read,save}=repository;
   const audit=(s,user,action)=>s.audit.unshift({id:randomUUID(),at:new Date().toISOString(),actor:user.name,action});
-  return async function routeApi(req,res,url) {
-    const path=url.pathname,b=['GET','HEAD'].includes(req.method)?{}:await parseBody(req);
+  let mutation=Promise.resolve();
+  async function handle(req,res,url,b){
+    const path=url.pathname;
     if(path==='/api/session'&&req.method==='GET') {
       const current=auth.userFor(req);return json(res,200,{user:current?{id:current.id,name:current.name,role:current.role,expires:current.expires}:null,demo});
     }
@@ -23,14 +25,16 @@ export function createApiRouter({repository,auth,demo}) {
     const s=read();
     if(path==='/api/workspace'&&req.method==='GET') {
       const staff=[{id:'admin',username:'admin',name:demo?'Asha Patil':'Administrator',role:'admin',active:true,groupIds:[]},...repository.listStaff()];
-      return json(res,200,{...scopedWorkspace(s,user,staff),demo,storage:{encrypted:repository.encrypted},offlineAccess:{issuedAt:new Date().toISOString(),expiresAt:new Date(Date.now()+7*86400000).toISOString()},user:{id:user.id,name:user.name,role:user.role,groupIds:user.groupIds}});
+      return json(res,200,{...scopedWorkspace(s,user,staff),credentialSettings:authority?.settings(s),demo,storage:{encrypted:repository.encrypted},offlineAccess:{issuedAt:new Date().toISOString(),expiresAt:new Date(Date.now()+7*86400000).toISOString()},user:{id:user.id,name:user.name,role:user.role,groupIds:user.groupIds}});
     }
+    if(path.startsWith('/api/certificates/'))return await certificateRoutes({req,res,url,b,s,user,repository,demo,audit,authority});
     if(supportRoutes({req,res,url,b,s,user,repository,demo,audit}))return;
     if(healthRoutes({req,res,url,b,s,user,repository,demo,audit}))return;
     if(operations({req,res,url,b,s,user,repository,demo,audit}))return;
     if(path==='/api/groups'&&req.method==='POST') {
-      requireRole(user,'admin','supervisor');assert(str(b.name)&&str(b.location)&&str(b.officer)&&date(b.nextMeeting),'Complete all group fields');
-      const group={id:'GRP-'+randomUUID().slice(0,8),name:b.name.trim(),location:b.location.trim(),officer:b.officer.trim(),nextMeeting:b.nextMeeting,time:'09:00',color:'teal'};
+      requireRole(user,'admin','supervisor');assert(str(b.name)&&str(b.officer)&&date(b.nextMeeting),'Complete all group fields');
+      assert(!b.location,'New groups do not collect location data');
+      const group={id:'GRP-'+randomUUID().slice(0,8),name:b.name.trim(),location:'',officer:b.officer.trim(),nextMeeting:b.nextMeeting,time:'09:00',color:'teal'};
       s.groups.push(group);audit(s,user,`Created group ${group.id}`);save(s);return json(res,201,group);
     }
     if(path==='/api/members'&&req.method==='POST') {
@@ -69,5 +73,11 @@ export function createApiRouter({repository,auth,demo}) {
       s.settings={name:b.name.trim(),currency:b.currency,country:b.country.trim(),locale:LANGUAGES.find(l=>l.code===s.config.language)?.locale||'en'};audit(s,user,'Updated organization settings (default currency applies to new records only)');save(s);return json(res,200,s.settings);
     }
     throw new ApiError('Endpoint not found',404);
+  }
+  return async function routeApi(req,res,url){
+    const b=['GET','HEAD'].includes(req.method)?{}:await parseBody(req),run=()=>handle(req,res,url,b);
+    if(['GET','HEAD'].includes(req.method))return run();
+    // Snapshot mutations must not interleave while certificate cryptography awaits.
+    const operation=mutation.then(run);mutation=operation.catch(()=>{});return operation;
   };
 }

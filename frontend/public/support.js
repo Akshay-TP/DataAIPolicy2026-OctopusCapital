@@ -10,7 +10,7 @@ export function createSupportUI(ctx){
   const unknown=(value,currency)=>value===null||value===undefined?'Unknown':money(value,currency);
   const inputNumber=(label,name,value='',nullable=false)=>field(label,name,'number',value??'',`${nullable?'':'required '}min="0" max="100000000" step="0.01"${nullable?' placeholder="Unknown / not provided"':''}`);
   const note=(label,name,value='',help='')=>`<label class="field wide"><span>${label}</span>${help?`<small>${help}</small>`:''}<textarea name="${name}" maxlength="1000">${esc(value)}</textarea></label>`;
-  const sourceFields=p=>select('Information supplied by','source',choices(['worker','family','member'],p.source))+note('Record notes (optional)','notes','','Record only what is needed. No full IDs, location details or employer/recruiter submissions.');
+  const sourceFields=p=>select('Information supplied by','source',choices(['domestic-worker','overseas-worker'].includes(p.kind)?['worker','family']:['member','family'],p.source))+note('Record notes (optional)','notes','','Record only what is needed. No full IDs, location details or employer/recruiter submissions.');
   const number=v=>v===''||v===null||v===undefined?null:Number(v);
   const table=(headers,rows)=>`<div class="table-wrap support-table"><table><thead><tr>${headers.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table>${rows.length?'':'<div class="empty">No records yet.</div>'}</div>`;
   const action=(label,name,id='',extra='')=>`<button class="text-btn" data-action="support-${name}" data-id="${esc(id)}" ${extra}>${label}</button>`;
@@ -50,7 +50,7 @@ export function createSupportUI(ctx){
       select('Information supplied by','source',choices(['worker','family','member'],kind==='prospective'||kind==='livelihood'?'member':'worker'))+
       field('Safe contact instructions (optional)','safeContact','text','','maxlength="300"',true)+note('Support context (optional)','notes')+
       '<label class="check field wide"><input type="checkbox" name="consented" required><span>The person or family freely agreed to this support record and understands its purpose. No employer or recruiter submission.</span></label>','Create support profile'));
-    const fill=()=>{const m=s().members.find(m=>m.id===$('#modal-form [name="memberId"]').value);if(m){$('#modal-form [name="name"]').value=m.name;$('#modal-form [name="groupId"]').value=m.groupId;$('#modal-form [name="memberReference"]').value=m.id;}};$('#modal-form [name="memberId"]').onchange=fill;
+    const fill=()=>{const m=s().members.find(m=>m.id===$('#modal-form [name="memberId"]').value);if(m){$('#modal-form [name="name"]').value=m.name;$('#modal-form [name="groupId"]').value=m.groupId;$('#modal-form [name="memberReference"]').value=m.id;}};$('#modal-form [name="memberId"]').onchange=fill;const syncSource=()=>{const isWorker=['domestic-worker','overseas-worker'].includes($('#modal-form [name="kind"]').value);$('#modal-form [name="source"]').innerHTML=choices(isWorker?['worker','family']:['member','family'],isWorker?'worker':'member');};$('#modal-form [name="kind"]').onchange=syncSource;syncSource();
     submit(async b=>{await send('/support/people','POST',{...b,id,memberId:b.memberId||null,consented:b.consented==='on'});toast('Support profile created.');},()=>profile(id));
   }
   const correction=(r,route)=>s().user.role==='officer'||r.pending||r.voided?'':action('Void incorrect entry','void',r.id,`data-route="${route}"`);

@@ -25,7 +25,13 @@ Each observation records its worker, family or member source, recording date and
 
 Members and groups, meeting attendance and collections, principal-only interest-free loans and schedules, partial repayments, receipts, consent-controlled member sharing and correction history remain available. Identity references contain only the last four digits, with no PAN requirement. Household check-ins cover voluntary 30-day essential-spending shortfalls, with explanations kept separate from officer observations. Baseline and 30/90-day outcome reports retain missing and declined responses and describe observed changes without claiming causation. Expected household cash-flow entries are plans, not transactions.
 
-## Try the four journeys
+## Specified-loan closure evidence
+
+A separate certificate workflow connects authoritative source review, an exact borrower preview and permission, authorised Ed25519 signing, and independent receipt. A signed JSON file or printed QR discloses one limited closure claim rather than a repayment history. Recipients check approved keys, integrity, dates and available withdrawal information, then record identity matching and documentary acceptance separately. Source changes conservatively withdraw issued evidence, with original history retained.
+
+Run `npm run demo:exchange` for two fictional institutional workspaces. Sahayog issuance/receipt is simulated; adoption and real acceptance have not been established. [Demonstration, encoding, offline limits and private configuration](docs/certificate-demo.md) explain the workflow. [Position audit](docs/position-audit.md) separates implemented features from attributed interview facts, hypotheses and pilot commitments.
+
+## Try the support journeys
 
 1. Open **Workers & families** and choose **Load support examples** in the demo. This creates fictional Indian records only when support tables are empty.
 2. Open Ramesh Kumar to inspect advance debt, a linked wage deduction, pay shortfalls and an assigned follow-up.
@@ -129,7 +135,7 @@ shared/            Currency formatting and household outcome calculations
 tests/             Workflow, permissions, encryption and persistence checks
 ```
 
-Run the checks with `npm test`. Database migrations run on startup and preserve existing records. Migration 006 adds separate support tables; encrypted backups include all new modules (schema 6), and restore still accepts earlier supported schemas.
+Run the checks with `npm test`. Database migrations run on startup and preserve existing records. Migrations 006–007 add separate support and certificate tables; encrypted backups include all new modules (schema 7), and restore still accepts earlier supported schemas.
 
 Earlier default demo files under `data/fieldledger.sqlite` are left intact. To open an older workspace, explicitly set `DATA_DIR` to its folder. The new India demo uses a separate folder so previous records are not relabelled, converted or deleted.
 

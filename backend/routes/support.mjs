@@ -23,7 +23,7 @@ export function supportRoutes({req,res,url,b,s,user,repository,demo,audit}){
   for(const field of ['latitude','longitude','location','passportNumber','aadhaar','nationalId','employerFeed'])assert(!(field in b),'Location and full identity or employer-feed fields are not collected');
   const save=action=>{audit(s,user,action);repository.save(s);};
   const personAccess=(personId,consent=true)=>{const p=s.supportPeople.find(p=>p.id===personId);assert(p,'Support profile not found',404);groupAccess(user,p.groupId);if(consent)assert(p.consented,'Consent is withdrawn. New capture is blocked.',403);return p;};
-  const source=()=>{assert(REPORTERS.includes(b.source),'Choose worker, family or member as the information source');return {source:b.source,notes:text(b.notes)};};
+  const source=()=>{assert(REPORTERS.includes(b.source),'Choose worker, family or member as the information source');const p=s.supportPeople.find(row=>row.id===b.personId);assert(!['domestic-worker','overseas-worker'].includes(p?.kind)||['worker','family'].includes(b.source),'Worker records must come from the worker or family');return {source:b.source,notes:text(b.notes)};};
   const actualDate=v=>assert(date(v)&&v<=today,'Recorded event date cannot be in the future');
   const amount=(v,currency,nullable=false)=>assert(nullable&&v===null||CURRENCIES.includes(currency)&&validMoney(v,currency),'Enter a valid amount for the selected currency, or explicitly unknown where allowed');
   const related=(collection,recordId,personId)=>{const r=s[collection].find(r=>r.id===recordId&&!r.voided);assert(r&&r.personId===personId,'Linked record is unavailable or belongs to another person');return r;};
@@ -70,6 +70,7 @@ export function supportRoutes({req,res,url,b,s,user,repository,demo,audit}){
   if(key==='supportPeople'){
     assert(str(b.name)&&['domestic-worker','overseas-worker','prospective','livelihood'].includes(b.kind),'Enter a name and support pathway');groupAccess(user,b.groupId);assert(s.groups.some(g=>g.id===b.groupId),'Choose an existing field group');assert(b.consented===true,'Record freely given consent before creating a support profile');assert(REPORTERS.includes(b.source),'Record worker, family or member as the source');
     if(b.memberId){const m=memberAccess(s,user,b.memberId);assert(m.groupId===b.groupId,'Member and field group must match');assert(!s.supportPeople.some(p=>p.memberId===m.id&&p.id!==b.id),'This member already has a support profile',409);}
+    assert(!['domestic-worker','overseas-worker'].includes(b.kind)||['worker','family'].includes(b.source),'Worker intake must come from the worker or family');
     assert(CURRENCIES.includes(b.currency),'Choose a supported currency');
     payload={id:b.id,name:b.name.trim(),kind:b.kind,groupId:b.groupId,memberId:b.memberId||null,memberReference:text(b.memberReference,80),currency:b.currency,source:b.source,consented:true,safeContact:text(b.safeContact,300),notes:text(b.notes)};
     extra={consentAt:new Date().toISOString(),missingInformation:[],reviewDate:null,payPolicy:{lateDays:7,shortPercent:10},history:[]};

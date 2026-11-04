@@ -15,7 +15,7 @@ if (( node_major < 24 )); then
   exit 1
 fi
 
-if [[ ! -d node_modules/better-sqlite3-multiple-ciphers ]]; then
+if ! node --input-type=module -e "await Promise.all([import('better-sqlite3-multiple-ciphers'), import('qrcode'), import('jsqr')])" >/dev/null 2>&1; then
   npm ci --omit=dev
 fi
 

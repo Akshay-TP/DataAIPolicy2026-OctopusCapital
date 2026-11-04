@@ -80,7 +80,7 @@ export function operations({req,res,url,b,s,user,repository,demo,audit}) {
   }
   if(path==='/api/backup'&&method==='POST') {
     requireRole(user,'admin');assert(str(b.password,12,200),'Use a backup passphrase of 12–200 characters');
-    save('Created encrypted workspace backup');json(res,200,encryptBackup({schema:6,createdAt:new Date().toISOString(),workspace:s,staff:repository.listStaff(true)},b.password));return true;
+    save('Created encrypted workspace backup');json(res,200,encryptBackup({schema:7,createdAt:new Date().toISOString(),workspace:s,staff:repository.listStaff(true)},b.password));return true;
   }
   if(path==='/api/config'&&method==='POST') {
     requireRole(user,'admin');assert(LANGUAGES.some(l=>l.code===b.language)&&Array.isArray(b.acceptedIds)&&b.acceptedIds.length>0&&b.acceptedIds.length<=15&&b.acceptedIds.every(id=>str(id,1,80)),'Choose a supported language and 1–15 accepted ID types');

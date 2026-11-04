@@ -88,7 +88,7 @@ test('household workflow persists, scopes access, handles retries and conflicts,
     assert.equal((await officer('/health/checkins','POST',{...base,id:'same-family-0001',memberId:'MEM-002'})).status,409);
     assert.equal((await admin('/health/outcomes?asOf=2026-02-15')).body.households,23);
     const archive=(await admin('/backup','POST',{password:'backup-health-passphrase'})).body;
-    const payload=decryptBackup(archive,'backup-health-passphrase');assert.equal(payload.schema,6);expected=payload.workspace;
+    const payload=decryptBackup(archive,'backup-health-passphrase');assert.equal(payload.schema,7);expected=payload.workspace;
     const restoreDir=mkdtempSync(join(tmpdir(),'fl-health-restored-')),repo=openRepository({dataDir:restoreDir,demo:false});
     try{repo.save(expected);for(const key of ['checkins','supportPlans','services','cashflow','scenarios'])assert.deepEqual(repo.read()[key],expected[key]);}finally{repo.close();rmSync(restoreDir,{recursive:true,force:true});}
     assert.equal((await officer('/health/outcomes?groupId=GRP-002')).status,403);

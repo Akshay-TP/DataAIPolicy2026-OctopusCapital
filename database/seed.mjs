@@ -1,8 +1,8 @@
 export function seed() {
   const groups = [
-    {id:'GRP-001', name:'Udaan Savings Group', location:'Nagpur', officer:'Asha Patil', day:'Thursday', nextMeeting:'2026-10-15', time:'09:00', color:'teal'},
-    {id:'GRP-002', name:'Sakhi Community Group', location:'Bhandara', officer:'Asha Patil', day:'Friday', nextMeeting:'2026-10-16', time:'10:30', color:'purple'},
-    {id:'GRP-003', name:'Pragati Livelihood Group', location:'Gondia', officer:'Meera Shah', day:'Monday', nextMeeting:'2026-10-19', time:'09:30', color:'orange'}
+    {id:'GRP-001', name:'Udaan Savings Group', location:'', officer:'Asha Patil', day:'Thursday', nextMeeting:'2026-10-15', time:'09:00', color:'teal'},
+    {id:'GRP-002', name:'Sakhi Community Group', location:'', officer:'Asha Patil', day:'Friday', nextMeeting:'2026-10-16', time:'10:30', color:'purple'},
+    {id:'GRP-003', name:'Pragati Livelihood Group', location:'', officer:'Meera Shah', day:'Monday', nextMeeting:'2026-10-19', time:'09:30', color:'orange'}
   ];
   const names = ['Sunita Patil','Rekha Sharma','Anita Devi','Meena Yadav','Pooja Singh','Kavita Joshi','Sushma Rao','Lata Pawar','Usha Mishra','Geeta Patel','Savita More','Nirmala Das','Shobha Jadhav','Asha Gupta','Seema Verma','Rani Kumari','Manju Sahu','Radha Chauhan','Kamala Sen','Sarita Naik','Vandana Roy','Pushpa Thakur','Sangeeta Jain','Mala Biswas'];
   const businesses = ['Village grocery shop','Vegetable growing','Food stall','Poultry raising','Tailoring','Market trading'];

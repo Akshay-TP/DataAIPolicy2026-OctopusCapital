@@ -21,7 +21,7 @@ export function projectOffline(workspace,records){
       if(key==='deductions'&&p.debtId){s.debtEntries||=[];if(!s.debtEntries.some(e=>e.id==='ded-'+p.id))s.debtEntries.push({...meta,id:'ded-'+p.id,personId:p.personId,debtId:p.debtId,date:p.date,kind:'repayment',amount:p.amount,currency:extra.currency,deductionId:p.id,source:p.source});}
       continue;
     }
-    const collection=!r._kind?'visits':({'/health/checkins':'checkins','/health/plans':'supportPlans','/health/cashflow':'cashflow','/health/scenarios':'scenarios'})[r._path];
+    const collection=!r._kind?'visits':({'/health/checkins':'checkins','/health/plans':'supportPlans','/health/cashflow':'cashflow','/health/scenarios':'scenarios','/certificates/decisions':'certificateDecisions'})[r._path];
     if(collection){s[collection]||=[];if(s[collection].some(v=>v.id===p.id))continue;let extra={};
       if(collection==='checkins')extra={periodStart:addDays(p.date,-29),voided:false};
       if(collection==='supportPlans')extra={history:[],deliveryStatus:'suggested',status:'open',assignee:s.staff.find(u=>u.id===p.assigneeId)?.name||s.user.name};
