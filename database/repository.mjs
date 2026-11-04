@@ -1,13 +1,15 @@
-import { DatabaseSync } from 'node:sqlite';
+import {SUPPORT_TABLES} from '../shared/support.mjs';
+import { databaseKey,openEncryptedDatabase,encryptedMigrationSnapshot } from './encryption.mjs';
 import { mkdirSync, readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { seed } from './seed.mjs';
 import { randomUUID } from 'node:crypto';
 
 /** Persistence boundary. Only this module accesses SQLite. */
-export function openRepository({ dataDir, demo }) {
+export function openRepository({ dataDir, demo, key, keyFile }) {
   mkdirSync(dataDir, { recursive: true });
-  const db = new DatabaseSync(resolve(dataDir, 'fieldledger.sqlite'));
+  const encryptionKey=databaseKey({dataDir,demo,key,keyFile});
+  const db = openEncryptedDatabase(resolve(dataDir,'fieldledger.sqlite'),encryptionKey);
   db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;');
   db.exec(readFileSync(new URL('./migrations/001_initial.sql', import.meta.url), 'utf8'));
   db.prepare('INSERT OR IGNORE INTO schema_migrations(version) VALUES (1)').run();
@@ -21,8 +23,8 @@ export function openRepository({ dataDir, demo }) {
   }
   if(!db.prepare('SELECT version FROM schema_migrations WHERE version=3').get()) {
     if(db.prepare('SELECT id FROM organization WHERE id=1').get()) {
-      const snapshot=resolve(dataDir,'before-multicurrency.sqlite');
-      if(!existsSync(snapshot))db.prepare('VACUUM INTO ?').run(snapshot);
+      const snapshot=resolve(dataDir,'before-multicurrency.sqlite.enc');
+      if(!existsSync(snapshot))encryptedMigrationSnapshot(db,snapshot,encryptionKey);
     }
     db.exec('PRAGMA foreign_keys=OFF; BEGIN IMMEDIATE');
     try {
@@ -38,7 +40,13 @@ export function openRepository({ dataDir, demo }) {
       db.prepare('INSERT INTO schema_migrations(version) VALUES(4)').run();db.exec('COMMIT');
     }catch(error){db.exec('ROLLBACK');throw error;}
   }
-  const defaults={workspaceId:randomUUID(),language:'en',acceptedIds:['Local government ID','Voter ID','Other approved ID'],questions:[]};
+  if(!db.prepare('SELECT version FROM schema_migrations WHERE version=5').get()) {
+    db.exec('BEGIN IMMEDIATE');try{db.exec(readFileSync(new URL('./migrations/005_cashflow_scenarios.sql',import.meta.url),'utf8'));db.prepare('INSERT INTO schema_migrations(version) VALUES(5)').run();db.exec('COMMIT');}catch(e){db.exec('ROLLBACK');throw e;}
+  }
+  if(!db.prepare('SELECT version FROM schema_migrations WHERE version=6').get()) {
+    db.exec('BEGIN IMMEDIATE');try{db.exec(readFileSync(new URL('./migrations/006_worker_support.sql',import.meta.url),'utf8'));db.prepare('INSERT INTO schema_migrations(version) VALUES(6)').run();db.exec('COMMIT');}catch(e){db.exec('ROLLBACK');throw e;}
+  }
+  const defaults={workspaceId:randomUUID(),language:'en',timeZone:'Asia/Kolkata',acceptedIds:['Aadhaar','Voter ID','Other approved ID'],questions:[]};
   db.prepare('INSERT OR IGNORE INTO workspace_config VALUES (1,?)').run(JSON.stringify(defaults));
 
   function read() {
@@ -57,12 +65,12 @@ export function openRepository({ dataDir, demo }) {
     members.forEach(m=>{const stored=JSON.parse(fields.find(f=>f.member_id===m.id)?.payload||'{}');m.customFields=stored.values||stored;m.customFieldLabels=stored.labels||{};m.householdKey=stored.householdKey||m.id;});
     const visits = db.prepare('SELECT id, member_id AS memberId, loan_id AS loanId, visited_on AS date, attendance, due, paid, savings, utilisation, note, officer, created_at AS createdAt, version, currency FROM visits ORDER BY rowid').all();
     const audit = db.prepare('SELECT id, occurred_at AS at, actor, action FROM audit_events ORDER BY occurred_at DESC, rowid DESC').all();
-    const config={timeZone:'Asia/Manila',...JSON.parse(db.prepare('SELECT payload FROM workspace_config WHERE id=1').get().payload)};
+    const config={timeZone:'Asia/Kolkata',...JSON.parse(db.prepare('SELECT payload FROM workspace_config WHERE id=1').get().payload)};
     const revisions=db.prepare('SELECT id,visit_id AS visitId,occurred_at AS at,actor,reason,before_json,after_json FROM visit_revisions ORDER BY occurred_at DESC').all().map(r=>({id:r.id,visitId:r.visitId,at:r.at,actor:r.actor,reason:r.reason,before:JSON.parse(r.before_json),after:JSON.parse(r.after_json)}));
     const followups=db.prepare('SELECT id,member_id AS memberId,title,assignee_id AS assigneeId,assignee,due_on AS dueDate,status,notes,resolution,created_by AS createdBy,created_at AS createdAt,updated_at AS updatedAt,version FROM followups ORDER BY due_on').all();
     const payloads=table=>db.prepare(`SELECT payload FROM ${table} ORDER BY rowid`).all().map(r=>JSON.parse(r.payload));
     return { settings, config, groups, members, loans, visits, audit, revisions, followups,
-      checkins:payloads('household_checkins'),services:payloads('support_services'),supportPlans:payloads('support_plans'),cashflow:payloads('household_cashflow') };
+      checkins:payloads('household_checkins'),services:payloads('support_services'),supportPlans:payloads('support_plans'),cashflow:payloads('household_cashflow'),scenarios:payloads('cashflow_scenarios'),...Object.fromEntries(Object.entries(SUPPORT_TABLES).map(([key,table])=>[key,payloads(table)])) };
   }
 
   // Atomic upserts keep entity tables separate and preserve foreign-key constraints.
@@ -96,8 +104,17 @@ export function openRepository({ dataDir, demo }) {
       (s.services||[]).forEach(x=>service.run(x.id,JSON.stringify(x)));
       const plan=db.prepare('INSERT INTO support_plans VALUES(?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET service_id=excluded.service_id,payload=excluded.payload');
       (s.supportPlans||[]).forEach(p=>plan.run(p.id,p.memberId,p.baselineId,p.serviceId||null,p.followupId,JSON.stringify(p)));
+      const scenario=db.prepare('INSERT INTO cashflow_scenarios VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload');
+      (s.scenarios||[]).forEach(e=>scenario.run(e.id,e.memberId,JSON.stringify(e)));
       const cashflow=db.prepare('INSERT INTO household_cashflow VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload');
       (s.cashflow||[]).forEach(e=>cashflow.run(e.id,e.memberId,e.date,JSON.stringify(e)));
+      for(const [key,table] of Object.entries(SUPPORT_TABLES)) {
+        for(const r of s[key]||[]) {
+          const cols=key==='supportPeople'?['id','group_id','member_id','payload']:['id','person_id',...(key==='payReceipts'||key==='deductions'?['pay_id']:key==='debtEntries'?['debt_id']:[]),'payload'];
+          const values=key==='supportPeople'?[r.id,r.groupId,r.memberId||null,JSON.stringify(r)]:[r.id,r.personId,...(key==='payReceipts'||key==='deductions'?[r.payId]:key==='debtEntries'?[r.debtId]:[]),JSON.stringify(r)];
+          db.prepare(`INSERT INTO ${table} (${cols.join(',')}) VALUES (${cols.map(()=>'?').join(',')}) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload`).run(...values);
+        }
+      }
       const event = db.prepare('INSERT OR IGNORE INTO audit_events VALUES (?,?,?,?)');
       s.audit.forEach(a => event.run(a.id,a.at,a.actor,a.action));
       db.exec('COMMIT');
@@ -126,5 +143,5 @@ export function openRepository({ dataDir, demo }) {
       db.exec('COMMIT');
     }catch(e){db.exec('ROLLBACK');throw e;}
   }
-  return { read, save, listStaff, saveStaff, close: () => db.close() };
+  return { read, save, listStaff, saveStaff, encrypted:true, close: () => db.close() };
 }

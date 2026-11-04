@@ -4,3 +4,6 @@ tmp
 tests
 .env
 node_modules
+
+.local
+*.key

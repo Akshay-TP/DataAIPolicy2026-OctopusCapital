@@ -7,8 +7,8 @@ export const daysBetween=(a,b)=>Math.round((Date.parse(b)-Date.parse(a))/8640000
 export function outcomeReport(s,{asOf,from='0000-01-01',to='9999-12-31',groupId=''}={}) {
   const members=s.members.filter(m=>!groupId||m.groupId===groupId),ids=new Set(members.map(m=>m.id));
   const household=id=>members.find(m=>m.id===id)?.householdKey||id;
-  const valid=s.checkins.filter(c=>!c.voided&&c.date<=asOf&&ids.has(c.memberId));
-  const plans=s.supportPlans.filter(p=>ids.has(p.memberId)&&p.startDate<=asOf);
+  const valid=s.checkins.filter(c=>!c.pending&&!c.voided&&c.date<=asOf&&ids.has(c.memberId));
+  const plans=s.supportPlans.filter(p=>!p.pending&&ids.has(p.memberId)&&p.startDate<=asOf);
   // One baseline per household: earliest support plan in the chosen baseline-date cohort.
   const cohorts=new Map();
   for(const p of plans.slice().sort((a,b)=>a.startDate.localeCompare(b.startDate)||a.id.localeCompare(b.id))) {
@@ -54,4 +54,25 @@ export function cashflowProjection(entries,{currency,openingBalance,from,to}) {
     const income=rows.filter(e=>e.kind==='income').reduce((n,e)=>n+Math.round(e.amount*100),0),expenses=rows.filter(e=>e.kind==='expense').reduce((n,e)=>n+Math.round(e.amount*100),0);
     balance+=income-expenses;return {date,income:income/100,expenses:expenses/100,balance:balance/100,gap:balance<0};
   });
+}
+/** KHR-equivalent planning, with original currency wallets always visible. No live FX feed. */
+export function dualCurrencyProjection(entries,options){
+  const {from,to,rateDate,rateSource}=options,rate=Number(options.khrPerUsd),openingKHR=Number(options.openingKHR),openingUSD=Number(options.openingUSD),stressPercent=Number(options.stressPercent||0);
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(from)||!/^\d{4}-\d{2}-\d{2}$/.test(to)||from>to||daysBetween(from,to)>366)throw new Error('Choose a planning period of at most 366 days.');
+  if(!Number.isFinite(rate)||rate<1||rate>1000000||!/^\d{4}-\d{2}-\d{2}$/.test(rateDate)||typeof rateSource!=='string'||!rateSource.trim()||rateSource.length>200)throw new Error('Enter KHR per USD, the rate date and its source.');
+  if(![openingKHR,openingUSD].every(n=>Number.isFinite(n)&&n>=0&&n<=100000000&&Math.abs(n*100-Math.round(n*100))<0.00001)||!Number.isFinite(stressPercent)||stressPercent<0||stressPercent>100)throw new Error('Check opening money and exchange-rate stress (0–100%).');
+  const active=entries.filter(e=>!e.cancelled&&e.date>=from&&e.date<=to);
+  if(active.some(e=>!['KHR','USD'].includes(e.currency)||!['income','expense'].includes(e.kind)||!Number.isFinite(e.amount)||e.amount<=0||e.amount>100000000))throw new Error('Expected entries must have valid KHR or USD amounts.');
+  function calculate(fx){
+    let khr=Math.round(openingKHR*100),usd=Math.round(openingUSD*100),balance=khr+Math.floor(usd*fx);
+    const dates=[...new Set([from,...active.map(e=>e.date),to])].sort(),rows=[];
+    for(const date of dates){let income=0,expenses=0;
+      for(const e of active.filter(e=>e.date===date)){const cents=Math.round(e.amount*100),sign=e.kind==='income'?1:-1;if(e.currency==='KHR')khr+=sign*cents;else usd+=sign*cents;const equivalent=e.currency==='USD'?(sign===1?Math.floor(cents*fx):Math.ceil(cents*fx)):cents;if(sign===1)income+=equivalent;else expenses+=equivalent;}
+      balance+=income-expenses;
+      if(![balance,khr,usd].every(Number.isSafeInteger))throw new Error('Planning totals exceed supported precision. Shorten this period.');
+      rows.push({date,income:income/100,expenses:expenses/100,balance:balance/100,khr:khr/100,usd:usd/100,gap:balance<0,requiresExchange:balance>=0&&(khr<0||usd<0)});
+    }
+    return {rate:fx,rows,firstGap:rows.find(r=>r.gap)?.date||null,maxGap:Math.max(0,...rows.map(r=>-r.balance)),exchangeRequired:rows.some(r=>r.requiresExchange)};
+  }
+  return {base:calculate(rate),stress:calculate(rate*(1+stressPercent/100)),assumptions:{from,to,openingKHR,openingUSD,khrPerUsd:rate,rateDate,rateSource:rateSource.trim(),stressPercent},entryCount:active.length};
 }

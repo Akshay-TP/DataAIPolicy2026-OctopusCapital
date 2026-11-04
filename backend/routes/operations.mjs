@@ -51,7 +51,7 @@ export function operations({req,res,url,b,s,user,repository,demo,audit}) {
   if(m&&method==='GET') {const loan=s.loans.find(l=>l.id===m[1]);assert(loan,'Loan not found',404);memberAccess(s,user,loan.memberId);assert(Math.ceil(loan.principal/loan.installment)<=600,'This legacy loan exceeds the 600-installment schedule limit');json(res,200,schedule(loan,s.visits,localDate(s.config.timeZone)));return true;}
   if(path==='/api/followups'&&method==='POST') {
     const member=memberAccess(s,user,b.memberId);assert(str(b.title)&&date(b.dueDate)&&str(b.notes,0,1000),'Title, date and valid notes required');
-    const target=b.assigneeId==='admin'?{id:'admin',name:demo?'Maya Santos':'Administrator',role:'admin',active:true}:repository.listStaff().find(u=>u.id===b.assigneeId);
+    const target=b.assigneeId==='admin'?{id:'admin',name:demo?'Asha Patil':'Administrator',role:'admin',active:true}:repository.listStaff().find(u=>u.id===b.assigneeId);
     assert(target?.active&&(target.role!=='officer'||target.groupIds.includes(member.groupId)),'Select an active officer assigned to this group or a supervisor');
     if(user.role==='officer')assert(target.id===user.id,'Field officers can assign follow-ups only to themselves',403);
     const at=new Date().toISOString(),followup={id:randomUUID(),memberId:member.id,title:b.title.trim(),assigneeId:target.id,assignee:target.name,dueDate:b.dueDate,status:'open',notes:b.notes.trim(),resolution:'',createdBy:user.name,createdAt:at,updatedAt:at,version:1};
@@ -80,7 +80,7 @@ export function operations({req,res,url,b,s,user,repository,demo,audit}) {
   }
   if(path==='/api/backup'&&method==='POST') {
     requireRole(user,'admin');assert(str(b.password,12,200),'Use a backup passphrase of 12–200 characters');
-    save('Created encrypted workspace backup');json(res,200,encryptBackup({schema:4,createdAt:new Date().toISOString(),workspace:s,staff:repository.listStaff(true)},b.password));return true;
+    save('Created encrypted workspace backup');json(res,200,encryptBackup({schema:6,createdAt:new Date().toISOString(),workspace:s,staff:repository.listStaff(true)},b.password));return true;
   }
   if(path==='/api/config'&&method==='POST') {
     requireRole(user,'admin');assert(LANGUAGES.some(l=>l.code===b.language)&&Array.isArray(b.acceptedIds)&&b.acceptedIds.length>0&&b.acceptedIds.length<=15&&b.acceptedIds.every(id=>str(id,1,80)),'Choose a supported language and 1–15 accepted ID types');

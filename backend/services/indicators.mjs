@@ -5,7 +5,7 @@ export function indicators(member, visits, loans) {
   const due = records.filter(v => v.due > 0);
   const contribution = records.filter(v => v.savings > 0);
   const checks = records.filter(v => v.utilisation !== 'not-checked');
-  const currency=member.currency||'PHP',savingsByCurrency=totalsByCurrency(records,'savings',currency);
+  const currency=member.currency||'INR',savingsByCurrency=totalsByCurrency(records,'savings',currency);
   const outstandingByCurrency=totalsByCurrency(loans.filter(l=>l.memberId===member.id).map(l=>({...l,balance:Math.max(0,l.principal-records.filter(v=>v.loanId===l.id).reduce((n,v)=>n+v.paid,0))})),'balance',currency);
   return {
     visits:days.length,conflictingAttendanceDates:days.filter(d=>d.conflict).map(d=>d.date),

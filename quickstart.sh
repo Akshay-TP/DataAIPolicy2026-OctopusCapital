@@ -15,9 +15,13 @@ if (( node_major < 24 )); then
   exit 1
 fi
 
+if [[ ! -d node_modules/better-sqlite3-multiple-ciphers ]]; then
+  npm ci --omit=dev
+fi
+
 printf '\nStarting FieldLedger…\n'
 printf 'The backend serves the frontend and initializes the SQLite database automatically.\n'
-printf 'No dependency installation is needed. Press Ctrl+C to stop.\n\n'
+printf 'Dependencies are installed on the first run. Press Ctrl+C to stop.\n\n'
 
 # Preserve environment settings and forward shutdown signals to the server.
 exec node backend/server.mjs

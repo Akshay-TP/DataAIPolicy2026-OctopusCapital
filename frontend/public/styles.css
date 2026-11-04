@@ -624,3 +624,43 @@ dialog { border-radius: 12px; max-height: 92dvh; }
   .workspace-shell > .sidebar { position:fixed; inset:0 auto 0 0; height:100dvh; width:var(--sidebar); }
   .workspace-shell > .main { margin-left:0; }
 }
+
+
+.offline-banner {display:flex;align-items:center;justify-content:space-between;gap:16px;background:#f1f4ed;border:1px solid #d8e0d1;border-radius:8px;padding:12px 16px;margin-bottom:20px;color:#344d3c;font-size:13px;line-height:1.6}
+.offline-banner .text-btn {flex-shrink:0}
+.offline-login {display:flex;justify-content:center;min-height:100dvh;background:#f4f2eb}
+.offline-login .login-form {width:min(100%,580px);padding:32px}
+.planner-summary {display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:24px 0}
+.planner-summary>div {display:flex;flex-direction:column;gap:8px;background:#f4f2eb;padding:20px;border-radius:8px}
+.planner-summary small {font-size:12px;color:#667266}
+.planner-summary strong {font-size:21px}
+.planner-summary span {font-size:13px}
+@media(max-width:600px){.offline-banner{align-items:flex-start;flex-direction:column;gap:4px}.planner-summary{grid-template-columns:1fr}.offline-login .login-form{padding:24px}}
+/* Support records use the same quiet paper-and-ink treatment as the field register. */
+.support-intro {display:flex;align-items:flex-start;justify-content:space-between;gap:20px;padding:18px 22px;background:#f0f3ec;border:1px solid #dbe2d3;border-radius:8px;margin:0 0 24px}
+.support-intro p {font-size:13px;line-height:1.7;color:#526253;margin:6px 0 0;max-width:790px}
+.support-niches {display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px}
+.support-niches small {font-size:11px;text-transform:uppercase;letter-spacing:1.2px;color:#687462}
+.support-profile-head {display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:12px}
+.support-profile-head small {display:block;color:#747d70;margin-bottom:6px}
+.support-profile-head p {font-size:13px;line-height:1.6}
+.support-actions {display:flex;flex-wrap:wrap;gap:8px 18px;border-block:1px solid #e6e7df;padding:16px 0;margin:16px 0}
+.support-actions .text-btn {padding:6px 0}
+.support-flag {display:flex;align-items:center;justify-content:space-between;gap:20px;padding:16px 18px;border-left:3px solid #b68b42;background:#faf6eb;margin:12px 0;border-radius:0 6px 6px 0}
+.support-flag p {font-size:13px;line-height:1.6;margin:6px 0}
+.support-flag small,.section-title small {font-size:11px;font-weight:400;color:#7a776a}
+.record-source {display:block;color:#78816f;font-size:11px;line-height:1.6;margin-top:6px}
+.support-summary {display:flex;flex-wrap:wrap;gap:12px 24px;background:#f5f4ed;padding:16px;font-size:13px;border-radius:6px}
+#support-search {min-width:0;max-width:420px;width:100%;padding:12px 14px;border:1px solid #dce0d5;border-radius:6px;font:inherit;background:white}
+#support-filter {padding:12px;border:1px solid #dce0d5;border-radius:6px;font:inherit;background:white;max-width:100%}
+@media(max-width:700px){.support-niches{grid-template-columns:1fr;gap:12px}.support-intro,.support-profile-head,.support-flag{flex-direction:column;align-items:flex-start}.support-flag{gap:8px}.support-actions{gap:8px 16px}}
+.support-table td:last-child .text-btn {display:block;text-align:left;margin:5px 0;padding:3px 0;line-height:1.5}
+.support-table td {vertical-align:top}
+
+/* Compact operational pathway filters. */
+.support-pathway {display:flex;flex-direction:column;align-items:flex-start;gap:6px;text-align:left;background:#fff;border:1px solid #dce1d7;border-radius:8px;padding:16px 18px;color:inherit;font:inherit;cursor:pointer}
+.support-pathway strong {font-size:16px;line-height:1.5}
+.support-pathway span {font-size:12px;line-height:1.6;color:#667263}
+.support-pathway.selected {border-color:#7a8970;background:#f0f3ec;box-shadow:inset 0 0 0 1px #7a8970}
+.support-pathway:focus-visible {outline:2px solid #a15c3f;outline-offset:3px}
+.support-case-panel {margin-top:24px}

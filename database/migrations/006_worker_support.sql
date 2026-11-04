@@ -1,0 +1,15 @@
+CREATE TABLE support_people(id TEXT PRIMARY KEY, group_id TEXT NOT NULL REFERENCES community_groups(id), member_id TEXT REFERENCES members(id), payload TEXT NOT NULL);
+CREATE TABLE worker_pay_periods(id TEXT PRIMARY KEY, person_id TEXT NOT NULL REFERENCES support_people(id), payload TEXT NOT NULL);
+CREATE TABLE worker_pay_receipts(id TEXT PRIMARY KEY, person_id TEXT NOT NULL REFERENCES support_people(id), pay_id TEXT NOT NULL REFERENCES worker_pay_periods(id), payload TEXT NOT NULL);
+CREATE TABLE worker_debts(id TEXT PRIMARY KEY, person_id TEXT NOT NULL REFERENCES support_people(id), payload TEXT NOT NULL);
+CREATE TABLE worker_debt_entries(id TEXT PRIMARY KEY, person_id TEXT NOT NULL REFERENCES support_people(id), debt_id TEXT NOT NULL REFERENCES worker_debts(id), payload TEXT NOT NULL);
+CREATE TABLE worker_deductions(id TEXT PRIMARY KEY, person_id TEXT NOT NULL REFERENCES support_people(id), pay_id TEXT NOT NULL REFERENCES worker_pay_periods(id), payload TEXT NOT NULL);
+CREATE TABLE worker_remittances(id TEXT PRIMARY KEY, person_id TEXT NOT NULL REFERENCES support_people(id), payload TEXT NOT NULL);
+CREATE TABLE prospect_participation(id TEXT PRIMARY KEY, person_id TEXT NOT NULL REFERENCES support_people(id), payload TEXT NOT NULL);
+CREATE TABLE prospect_reviews(id TEXT PRIMARY KEY, person_id TEXT NOT NULL REFERENCES support_people(id), payload TEXT NOT NULL);
+CREATE TABLE livelihood_checks(id TEXT PRIMARY KEY, person_id TEXT NOT NULL REFERENCES support_people(id), payload TEXT NOT NULL);
+CREATE TABLE worker_support_cases(id TEXT PRIMARY KEY, person_id TEXT NOT NULL REFERENCES support_people(id), payload TEXT NOT NULL);
+CREATE UNIQUE INDEX idx_support_people_member ON support_people(member_id) WHERE member_id IS NOT NULL;
+CREATE INDEX idx_support_group ON support_people(group_id);
+CREATE INDEX idx_pay_person ON worker_pay_periods(person_id);
+CREATE INDEX idx_worker_case_person ON worker_support_cases(person_id);

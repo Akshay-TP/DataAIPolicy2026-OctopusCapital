@@ -1,3 +1,5 @@
+-- Historical PHP defaults are retained to preserve the meaning of older installations.
+-- Current application defaults and forms are configured in shared/catalog.mjs.
 ALTER TABLE members ADD COLUMN currency TEXT NOT NULL DEFAULT 'PHP';
 UPDATE members SET currency=COALESCE((SELECT currency FROM organization WHERE id=1),'PHP');
 ALTER TABLE loans ADD COLUMN currency TEXT NOT NULL DEFAULT 'PHP';

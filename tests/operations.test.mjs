@@ -12,7 +12,8 @@ import {parseCsv} from '../backend/services/csv.mjs';
 import {localDate} from '../backend/services/dates.mjs';
 
 test('field dates respect local midnight rather than UTC midnight',()=>{
-  assert.equal(localDate('Asia/Manila',new Date('2026-10-16T17:00:00Z')),'2026-10-17');
+  assert.equal(localDate('Asia/Phnom_Penh',new Date('2026-10-16T17:00:00Z')),'2026-10-17');
+  assert.equal(localDate('Asia/Phnom_Penh',new Date('2026-10-16T16:30:00Z')),'2026-10-16');
   assert.equal(localDate('UTC',new Date('2026-10-16T17:00:00Z')),'2026-10-16');
 });
 
@@ -86,13 +87,13 @@ test('group meeting atomicity, permissions, corrections, cases, CSV, and full re
     const created=await field('/followups','POST',{memberId:'MEM-001',title:'Check stock purchase',assigneeId:user.id,dueDate:'2026-10-20',notes:'Arrange a visit'});assert.equal(created.status,201);
     assert.equal((await field('/followups/'+created.body.id,'PATCH',{version:1,status:'resolved',resolution:''})).status,400);
     assert.equal((await field('/followups/'+created.body.id,'PATCH',{version:1,status:'resolved',resolution:'Visited and confirmed stock purchase'})).status,200);
-    const csv='name,groupId,business,income,expenses,household,earners,identityType,identitySuffix\nImported Person,GRP-001,Shop,12000,9000,4,2,Local government ID,1234\n';
+    const csv='name,groupId,business,income,expenses,household,earners,identityType,identitySuffix\nImported Person,GRP-001,Shop,12000,9000,4,2,Aadhaar,1234\n';
     assert.equal((await supervisor('/import/members','POST',{csv,commit:false})).body.valid,1);
     assert.equal((await supervisor('/import/members','POST',{csv,commit:true})).status,201);
     assert.equal((await supervisor('/import/members','POST',{csv,commit:true})).status,400);
     assert.equal((await field('/import/members','POST',{csv,commit:false})).status,403);
-    const config=await admin('/config','POST',{language:'fil',acceptedIds:['Barangay ID'],questions:[{label:'Seasonal income',type:'number',required:true}]});assert.equal(config.status,200);
-    const member={name:'Test custom fields',groupId:'GRP-001',business:'Shop',income:12000,expenses:8000,household:3,earners:1,identityType:'Barangay ID',identitySuffix:'1234'};
+    const config=await admin('/config','POST',{language:'en',acceptedIds:['National ID card'],questions:[{label:'Seasonal income',type:'number',required:true}]});assert.equal(config.status,200);
+    const member={name:'Test custom fields',groupId:'GRP-001',business:'Shop',income:12000,expenses:8000,household:3,earners:1,identityType:'National ID card',identitySuffix:'1234'};
     assert.equal((await field('/members','POST',member)).status,400);
     member.customFields={[config.body.questions[0].id]:1500};const customMember=await field('/members','POST',member);assert.equal(customMember.status,201);
     const archive=(await admin('/backup','POST',{password:'backup-passphrase-123'})).body;

@@ -1,3 +1,4 @@
+import {dualCurrencyProjection} from '../../shared/health.mjs';
 import {randomUUID} from 'node:crypto';
 import {assert,str,date,json} from '../middleware/http.mjs';
 import {memberAccess,requireRole,scopedWorkspace} from '../services/access.mjs';
@@ -13,7 +14,7 @@ const choices=(value,allowed)=>Array.isArray(value)&&value.length<=allowed.lengt
 export function healthRoutes({req,res,url,b,s,user,repository,demo,audit}) {
   const path=url.pathname,method=req.method,today=localDate(s.config.timeZone);
   const save=message=>{audit(s,user,message);repository.save(s);};
-  const staff=()=>[{id:'admin',name:demo?'Maya Santos':'Administrator',role:'admin',active:true},...repository.listStaff()];
+  const staff=()=>[{id:'admin',name:demo?'Asha Patil':'Administrator',role:'admin',active:true},...repository.listStaff()];
   const assignee=(id,member)=>{
     const target=staff().find(u=>u.id===id);
     assert(target?.active&&(target.role!=='officer'||target.groupIds.includes(member.groupId)),'Choose active staff assigned to this household');
@@ -50,7 +51,7 @@ export function healthRoutes({req,res,url,b,s,user,repository,demo,audit}) {
     assert(choices(b.essentials,ESSENTIALS)&&choices(b.causes,CAUSES),'Check essentials and contributing circumstances');
     assert(!b.causes.includes('unknown')||b.causes.length===1,'Choose unknown by itself, or select the reported circumstances');
     assert(b.shortfallDays!==0||!b.essentials.length,'A zero-day report cannot list unmet essentials');
-    assert(CURRENCIES.includes(b.currency),'Choose PHP or USD');
+    assert(CURRENCIES.includes(b.currency),'Choose KHR or USD');
     for(const key of ['income','expenses'])assert(b[key]===null||validMoney(b[key],b.currency),'Amounts must be unknown or valid for this currency');
     assert(['yes','no','unknown','declined'].includes(b.borrowing),'Choose a borrowing response');
     assert(b.stress===null||Number.isInteger(b.stress)&&b.stress>=0&&b.stress<=4,'Stress must be unknown or 0–4');
@@ -117,6 +118,16 @@ export function healthRoutes({req,res,url,b,s,user,repository,demo,audit}) {
     p.history.push({operationId:b.operationId,requestKey:key,at,actor:user.name,before:Object.fromEntries(Object.keys(next).map(k=>[k,p[k]])),after:next});
     Object.assign(p,next,{version:p.version+1,updatedAt:at});const f=s.followups.find(f=>f.id===p.followupId);Object.assign(f,{status:p.status,dueDate:p.dueDate,assigneeId:p.assigneeId,assignee:p.assignee,resolution:p.resolution,version:f.version+1,updatedAt:at});
     save(`Updated household support plan ${p.id} (${p.deliveryStatus})`);json(res,200,p);return true;
+  }
+  if(path==='/api/health/scenarios'&&method==='POST') {
+    capture();const id=identity(b),member=memberAccess(s,user,b.memberId);
+    assert(str(b.label,1,120)&&b.assumptions&&Array.isArray(b.entries)&&b.entries.length<=2000,'Name the scenario and include its expected entries');
+    for(const e of b.entries)assert(date(e.date)&&str(e.label)&&CURRENCIES.includes(e.currency)&&validMoney(e.amount,e.currency)&&e.amount>0&&['income','expense'].includes(e.kind),'Check scenario entries');
+    let result;try{result=dualCurrencyProjection(b.entries,b.assumptions);}catch(e){assert(false,e.message);}
+    assert(date(result.assumptions.rateDate)&&result.assumptions.rateDate<=today&&date(result.assumptions.from)&&date(result.assumptions.to),'Check the planning and rate dates');
+    const payload={id,memberId:member.id,label:b.label.trim(),assumptions:result.assumptions,entries:b.entries.map(e=>({id:e.id||null,date:e.date,label:e.label,kind:e.kind,currency:e.currency,amount:e.amount,cancelled:!!e.cancelled}))};
+    const existing=s.scenarios.find(e=>e.id===id);if(existing){assert(existing.createdById===user.id&&existing.requestKey===canonical(payload),'Scenario identifier already used with different assumptions',409);json(res,200,existing);return true;}
+    const scenario={...payload,result,requestKey:canonical(payload),createdById:user.id,createdBy:user.name,createdAt:new Date().toISOString(),version:1};s.scenarios.push(scenario);save(`Saved KHR/USD cash-flow scenario ${id}`);json(res,201,scenario);return true;
   }
   if(path==='/api/health/cashflow'&&method==='POST') {
     capture();const id=identity(b),member=memberAccess(s,user,b.memberId);

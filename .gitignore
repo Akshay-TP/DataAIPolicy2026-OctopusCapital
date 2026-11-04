@@ -5,3 +5,6 @@ tmp/
 node_modules/
 .env
 *.sqlite*
+
+.local/
+*.key

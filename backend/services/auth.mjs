@@ -12,7 +12,7 @@ function matches(password,credential) {
 export function createAuth({demo,password,secureCookie,repository}) {
   const sessions=new Map(),attempts=new Map();
   const root=hashPassword(password||'demo'),dummy=hashPassword('invalid-user-password');
-  const bootstrap=()=>({id:'admin',username:'admin',name:demo?'Maya Santos':'Administrator',role:'admin',groupIds:[],active:true});
+  const bootstrap=()=>({id:'admin',username:'admin',name:demo?'Asha Patil':'Administrator',role:'admin',groupIds:[],active:true});
   function userFor(req) {
     const token=(req.headers.cookie||'').split('; ').find(x=>x.startsWith('fl_session='))?.slice(11);
     const session=sessions.get(token);

@@ -1,3 +1,4 @@
+import {supportRoutes} from './support.mjs';
 import { randomUUID } from 'node:crypto';
 import { indicators,reviewReasons } from '../services/indicators.mjs';
 import { ApiError,assert,str,money,date,json,parseBody } from '../middleware/http.mjs';
@@ -21,9 +22,10 @@ export function createApiRouter({repository,auth,demo}) {
     if(path==='/api/logout'&&req.method==='POST'){auth.logout(res,user);return json(res,200,{ok:true});}
     const s=read();
     if(path==='/api/workspace'&&req.method==='GET') {
-      const staff=[{id:'admin',username:'admin',name:demo?'Maya Santos':'Administrator',role:'admin',active:true,groupIds:[]},...repository.listStaff()];
-      return json(res,200,{...scopedWorkspace(s,user,staff),demo,user:{id:user.id,name:user.name,role:user.role,groupIds:user.groupIds}});
+      const staff=[{id:'admin',username:'admin',name:demo?'Asha Patil':'Administrator',role:'admin',active:true,groupIds:[]},...repository.listStaff()];
+      return json(res,200,{...scopedWorkspace(s,user,staff),demo,storage:{encrypted:repository.encrypted},offlineAccess:{issuedAt:new Date().toISOString(),expiresAt:new Date(Date.now()+7*86400000).toISOString()},user:{id:user.id,name:user.name,role:user.role,groupIds:user.groupIds}});
     }
+    if(supportRoutes({req,res,url,b,s,user,repository,demo,audit}))return;
     if(healthRoutes({req,res,url,b,s,user,repository,demo,audit}))return;
     if(operations({req,res,url,b,s,user,repository,demo,audit}))return;
     if(path==='/api/groups'&&req.method==='POST') {
@@ -36,7 +38,7 @@ export function createApiRouter({repository,auth,demo}) {
     }
     if(path==='/api/loans'&&req.method==='POST') {
       requireRole(user,'admin','supervisor');const member=memberAccess(s,user,b.memberId),currency=b.currency||member.currency||s.settings.currency;
-      assert(CURRENCIES.includes(currency)&&validMoney(b.principal,currency)&&b.principal>0&&validMoney(b.installment,currency)&&b.installment>0&&b.installment<=b.principal&&str(b.purpose)&&date(b.date)&&['weekly','fortnightly','monthly'].includes(b.frequency),'Check loan details and currency precision (PHP or USD for new loans)');
+      assert(CURRENCIES.includes(currency)&&validMoney(b.principal,currency)&&b.principal>0&&validMoney(b.installment,currency)&&b.installment>0&&b.installment<=b.principal&&str(b.purpose)&&date(b.date)&&['weekly','fortnightly','monthly'].includes(b.frequency),'Check the loan details and currency precision');
       assert(Math.ceil(b.principal/b.installment)<=600,'Use at most 600 installments per loan');
       const loan={id:'LN-'+randomUUID().slice(0,8),currency,memberId:b.memberId,principal:b.principal,installment:b.installment,purpose:b.purpose.trim(),date:b.date,frequency:b.frequency,status:'active'};
       s.loans.push(loan);audit(s,user,`Recorded externally approved interest-free loan ${loan.id}`);save(s);return json(res,201,loan);

@@ -1,5 +1,12 @@
-export const CURRENCIES = ['PHP','USD'];
-export const LANGUAGES = [{code:'en',name:'English',locale:'en-PH'},{code:'fil',name:'Filipino',locale:'fil-PH'}];
+export const ENTRY_CURRENCIES = ['INR', 'USD', 'AED', 'SAR'];
+// Existing records retain their original currency; legacy codes are not new defaults.
+export const CURRENCIES = [...ENTRY_CURRENCIES, 'KHR'];
+export function entryCurrencies(existingCurrency) {
+  return CURRENCIES.includes(existingCurrency) && !ENTRY_CURRENCIES.includes(existingCurrency)
+    ? [...ENTRY_CURRENCIES, existingCurrency]
+    : ENTRY_CURRENCIES;
+}
+export const LANGUAGES = [{code: 'en', name: 'English', locale: 'en-IN'}];
 export function currencyDigits(currency) {
   // Legacy record labels remain readable without offering those currencies for new entries.
   if(typeof currency!=='string'||!/^[A-Z]{3}$/.test(currency))throw new Error('Unsupported currency');
@@ -13,7 +20,7 @@ export function formatMoney(value,currency,locale='en') {
   const digits=currencyDigits(currency);
   return new Intl.NumberFormat(locale,{style:'currency',currency,currencyDisplay:'code',minimumFractionDigits:Number.isInteger(value)?0:digits,maximumFractionDigits:digits}).format(value);
 }
-export function totalsByCurrency(records,valueKey,fallback='PHP') {
+export function totalsByCurrency(records,valueKey,fallback='INR') {
   const totals={};for(const record of records){const currency=record.currency||fallback;totals[currency]=(totals[currency]||0)+Math.round((record[valueKey]||0)*100);}
   return Object.fromEntries(Object.entries(totals).map(([currency,value])=>[currency,value/100]));
 }

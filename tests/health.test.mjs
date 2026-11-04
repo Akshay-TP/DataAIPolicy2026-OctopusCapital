@@ -27,8 +27,8 @@ test('outcomes use matched households, separate nonresponse, and ignore void/fut
 });
 
 test('planner nets expected flows by date and currency without mixing or counting cancelled entries',()=>{
-  const entries=[{date:'2026-01-01',currency:'PHP',kind:'expense',amount:120},{date:'2026-01-01',currency:'USD',kind:'income',amount:1000},{date:'2026-01-02',currency:'PHP',kind:'income',amount:70},{date:'2026-01-02',currency:'PHP',kind:'expense',amount:99,cancelled:true}];
-  assert.deepEqual(cashflowProjection(entries,{currency:'PHP',openingBalance:100,from:'2026-01-01',to:'2026-01-31'}),[{date:'2026-01-01',income:0,expenses:120,balance:-20,gap:true},{date:'2026-01-02',income:70,expenses:0,balance:50,gap:false}]);
+  const entries=[{date:'2026-01-01',currency:'KHR',kind:'expense',amount:120},{date:'2026-01-01',currency:'USD',kind:'income',amount:1000},{date:'2026-01-02',currency:'KHR',kind:'income',amount:70},{date:'2026-01-02',currency:'KHR',kind:'expense',amount:99,cancelled:true}];
+  assert.deepEqual(cashflowProjection(entries,{currency:'KHR',openingBalance:100,from:'2026-01-01',to:'2026-01-31'}),[{date:'2026-01-01',income:0,expenses:120,balance:-20,gap:true},{date:'2026-01-02',income:70,expenses:0,balance:50,gap:false}]);
 });
 
 test('household workflow persists, scopes access, handles retries and conflicts, and backs up all records',async()=>{
@@ -42,7 +42,7 @@ test('household workflow persists, scopes access, handles retries and conflicts,
     const admin=await client({demo:true});
     await admin('/staff','POST',{name:'Officer',username:'health-officer',password:'safe-test-password-123',role:'officer',groupIds:['GRP-001']});
     const officer=await client({username:'health-officer',password:'safe-test-password-123'}),who=(await officer('/workspace')).body.user;
-    const base={id:'baseline-0001',memberId:'MEM-001',date:'2026-01-01',response:'answered',voluntaryConfirmed:true,shortfallDays:10,stress:3,income:5000,expenses:6000,currency:'PHP',essentials:['food'],causes:['delayed-income'],borrowing:'yes',supportPreference:'requested',explanation:'Payment delayed',officerNotes:'Discussed available support'};
+    const base={id:'baseline-0001',memberId:'MEM-001',date:'2026-01-01',response:'answered',voluntaryConfirmed:true,shortfallDays:10,stress:3,income:5000,expenses:6000,currency:'KHR',essentials:['food'],causes:['delayed-income'],borrowing:'yes',supportPreference:'requested',explanation:'Payment delayed',officerNotes:'Discussed available support'};
     assert.equal((await officer('/health/checkins','POST',{...base,memberId:'MEM-010'})).status,403);
     assert.equal((await officer('/health/checkins','POST',{...base,capturedBy:'another-account'})).status,403);
     assert.equal((await officer('/health/checkins','POST',{...base,shortfallDays:31})).status,400);
@@ -68,7 +68,7 @@ test('household workflow persists, scopes access, handles retries and conflicts,
     assert.equal((await officer('/health/checkins','POST',outcome)).status,201);
     const report=(await officer('/health/outcomes?asOf=2026-02-15')).body;
     assert.equal(report.milestones[0].paired,1);assert.equal(report.milestones[0].followupMean,3);assert.equal(report.delivery.medianDaysToSupport,6);
-    const entry={id:'cashflow-0001',memberId:'MEM-001',date:'2026-02-01',kind:'income',amount:1000,currency:'PHP',label:'Expected shop sales',notes:''};
+    const entry={id:'cashflow-0001',memberId:'MEM-001',date:'2026-02-01',kind:'income',amount:1000,currency:'KHR',label:'Expected shop sales',notes:''};
     assert.equal((await officer('/health/cashflow','POST',entry)).status,201);assert.equal((await officer('/health/cashflow','POST',entry)).status,200);
     const declined={...base,id:'declined-0001',date:'2026-02-20',response:'declined',voluntaryConfirmed:false,shortfallDays:null,income:null,expenses:null,stress:null,essentials:[],causes:[],borrowing:'unknown',supportPreference:'declined',explanation:''};
     assert.equal((await officer('/health/checkins','POST',declined)).status,201);
@@ -76,19 +76,25 @@ test('household workflow persists, scopes access, handles retries and conflicts,
     assert.equal((await admin('/health/checkins/'+outcome.id+'/void','POST',{version:1,reason:'Incorrect recall period'})).status,200);
     assert.equal((await admin('/health/outcomes?asOf=2026-02-15')).body.milestones[0].paired,0);
     assert.equal((await officer('/health/cashflow/'+entry.id+'/cancel','POST',{version:1,reason:'Income date changed'})).status,200);
-    const scoped=(await officer('/workspace')).body;assert.equal(scoped.checkins.length,3);assert.equal(scoped.supportPlans.length,1);assert.equal(scoped.cashflow.length,1);
+    const scenario={id:'scenario-00001',memberId:'MEM-001',label:'Harvest and dollar installments',assumptions:{from:'2026-02-01',to:'2026-03-01',openingKHR:400000,openingUSD:0,khrPerUsd:4000,rateDate:'2026-01-31',rateSource:'Planning test',stressPercent:10},entries:[{id:'expected-debt',date:'2026-02-10',label:'Dollar debt',kind:'expense',currency:'USD',amount:110}]};
+    assert.equal((await officer('/health/scenarios','POST',{...scenario,memberId:'MEM-010'})).status,403);
+    assert.equal((await officer('/health/scenarios','POST',{...scenario,assumptions:{...scenario.assumptions,khrPerUsd:0}})).status,400);
+    const savedScenario=await officer('/health/scenarios','POST',scenario);assert.equal(savedScenario.status,201,JSON.stringify(savedScenario.body));assert.equal(savedScenario.body.result.base.maxGap,40000);
+    assert.equal((await officer('/health/scenarios','POST',scenario)).status,200);
+    assert.equal((await officer('/health/scenarios','POST',{...scenario,label:'Changed'})).status,409);
+    const scoped=(await officer('/workspace')).body;assert.equal(scoped.checkins.length,3);assert.equal(scoped.supportPlans.length,1);assert.equal(scoped.cashflow.length,1);assert.equal(scoped.scenarios.length,1);assert.equal(scoped.storage.encrypted,true);assert.ok(Date.parse(scoped.offlineAccess.expiresAt)>Date.now());
     assert.equal((await officer('/health/household-link','POST',{memberId:'MEM-002',targetMemberId:'MEM-001',confirmed:true})).status,403);
     assert.equal((await admin('/health/household-link','POST',{memberId:'MEM-002',targetMemberId:'MEM-001',confirmed:true})).status,200);
     assert.equal((await officer('/health/checkins','POST',{...base,id:'same-family-0001',memberId:'MEM-002'})).status,409);
     assert.equal((await admin('/health/outcomes?asOf=2026-02-15')).body.households,23);
     const archive=(await admin('/backup','POST',{password:'backup-health-passphrase'})).body;
-    const payload=decryptBackup(archive,'backup-health-passphrase');assert.equal(payload.schema,4);expected=payload.workspace;
+    const payload=decryptBackup(archive,'backup-health-passphrase');assert.equal(payload.schema,6);expected=payload.workspace;
     const restoreDir=mkdtempSync(join(tmpdir(),'fl-health-restored-')),repo=openRepository({dataDir:restoreDir,demo:false});
-    try{repo.save(expected);for(const key of ['checkins','supportPlans','services','cashflow'])assert.deepEqual(repo.read()[key],expected[key]);}finally{repo.close();rmSync(restoreDir,{recursive:true,force:true});}
+    try{repo.save(expected);for(const key of ['checkins','supportPlans','services','cashflow','scenarios'])assert.deepEqual(repo.read()[key],expected[key]);}finally{repo.close();rmSync(restoreDir,{recursive:true,force:true});}
     assert.equal((await officer('/health/outcomes?groupId=GRP-002')).status,403);
     const empty=await admin('/staff','POST',{name:'Other officer',username:'health-other',password:'safe-test-password-123',role:'officer',groupIds:['GRP-002']});assert.equal(empty.status,201);
     const other=await client({username:'health-other',password:'safe-test-password-123'}),otherWorkspace=(await other('/workspace')).body;
-    assert.equal(otherWorkspace.checkins.length,0);assert.equal(otherWorkspace.supportPlans.length,0);assert.equal(otherWorkspace.cashflow.length,0);
+    assert.equal(otherWorkspace.checkins.length,0);assert.equal(otherWorkspace.supportPlans.length,0);assert.equal(otherWorkspace.cashflow.length,0);assert.equal(otherWorkspace.scenarios.length,0);
   }finally{proc.kill();await once(proc,'exit');}
   const reopened=openRepository({dataDir:dir,demo:false});try{assert.equal(reopened.read().supportPlans[0].history.length,1);assert.equal(reopened.read().checkins.length,3);}finally{reopened.close();rmSync(dir,{recursive:true,force:true});}
 });

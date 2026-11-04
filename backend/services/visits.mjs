@@ -25,7 +25,7 @@ export function captureVisit(s,b,user) {
   const visit={id:b.id,currency,memberId:b.memberId,loanId:loan?.id||null,date:b.date,attendance:b.attendance,due:loan?amount(Math.min(cents(loan.installment),balance)):0,paid:b.paid,savings:b.savings,utilisation:b.utilisation,note:b.note.trim(),officer:user.name,createdAt:new Date().toISOString(),version:1};
   s.visits.push(visit);return {visit,created:true};
 }
-export function validateObservation(b,currency='PHP') {
+export function validateObservation(b,currency='INR') {
   assert(['present','absent','excused','not-recorded'].includes(b.attendance)&&['not-checked','verified','follow-up'].includes(b.utilisation),'Invalid visit status');
   assert(validMoney(b.paid,currency)&&validMoney(b.savings,currency)&&str(b.note,0,1000),'Invalid amounts, currency precision or note');
 }
