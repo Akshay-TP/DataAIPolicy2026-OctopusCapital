@@ -1,12 +1,8 @@
-export const CURRENCIES = ['PHP','INR','USD','IDR','KHR','VND','THB','MYR','SGD','HKD','CNY','BDT','NPR','LKR','JPY','KRW','EUR','GBP','AUD'];
-export const LANGUAGES = [
-  {code:'en',name:'English',locale:'en'}, {code:'fil',name:'Filipino',locale:'fil'},
-  {code:'hi',name:'हिन्दी',locale:'hi'}, {code:'bn',name:'বাংলা',locale:'bn'},
-  {code:'id',name:'Bahasa Indonesia',locale:'id'}, {code:'vi',name:'Tiếng Việt',locale:'vi'},
-  {code:'th',name:'ไทย',locale:'th'}, {code:'zh-Hant',name:'繁體中文',locale:'zh-Hant'}
-];
+export const CURRENCIES = ['PHP','USD'];
+export const LANGUAGES = [{code:'en',name:'English',locale:'en-PH'},{code:'fil',name:'Filipino',locale:'fil-PH'}];
 export function currencyDigits(currency) {
-  if(!CURRENCIES.includes(currency))throw new Error('Unsupported currency');
+  // Legacy record labels remain readable without offering those currencies for new entries.
+  if(typeof currency!=='string'||!/^[A-Z]{3}$/.test(currency))throw new Error('Unsupported currency');
   return new Intl.NumberFormat('en',{style:'currency',currency}).resolvedOptions().maximumFractionDigits;
 }
 export function validMoney(value,currency) {

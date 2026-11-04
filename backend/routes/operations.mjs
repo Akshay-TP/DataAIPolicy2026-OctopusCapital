@@ -60,6 +60,7 @@ export function operations({req,res,url,b,s,user,repository,demo,audit}) {
   m=path.match(/^\/api\/followups\/([^/]+)$/);
   if(m&&method==='PATCH') {
     const f=s.followups.find(f=>f.id===m[1]);assert(f,'Follow-up not found',404);memberAccess(s,user,f.memberId);
+    assert(!s.supportPlans.some(p=>p.followupId===f.id),'Update this case through its household support plan',409);
     assert(user.role!=='officer'||f.assigneeId===user.id,'Only the assigned officer or supervisor can update this case',403);
     assert(b.version===f.version,'This case has changed. Reload it first.',409);
     assert(['open','in-progress','resolved'].includes(b.status)&&str(b.resolution,0,1000),'Invalid case update');assert(b.status!=='resolved'||str(b.resolution,5,1000),'Describe how the issue was resolved');
@@ -79,7 +80,7 @@ export function operations({req,res,url,b,s,user,repository,demo,audit}) {
   }
   if(path==='/api/backup'&&method==='POST') {
     requireRole(user,'admin');assert(str(b.password,12,200),'Use a backup passphrase of 12–200 characters');
-    save('Created encrypted workspace backup');json(res,200,encryptBackup({schema:3,createdAt:new Date().toISOString(),workspace:s,staff:repository.listStaff(true)},b.password));return true;
+    save('Created encrypted workspace backup');json(res,200,encryptBackup({schema:4,createdAt:new Date().toISOString(),workspace:s,staff:repository.listStaff(true)},b.password));return true;
   }
   if(path==='/api/config'&&method==='POST') {
     requireRole(user,'admin');assert(LANGUAGES.some(l=>l.code===b.language)&&Array.isArray(b.acceptedIds)&&b.acceptedIds.length>0&&b.acceptedIds.length<=15&&b.acceptedIds.every(id=>str(id,1,80)),'Choose a supported language and 1–15 accepted ID types');

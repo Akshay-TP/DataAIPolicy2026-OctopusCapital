@@ -1,12 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { assert,str,money } from '../middleware/http.mjs';
 import { groupAccess } from './access.mjs';
-import { validMoney } from '../../shared/catalog.mjs';
+import { validMoney,CURRENCIES } from '../../shared/catalog.mjs';
 export function enrollMember(s,b,user) {
   assert(str(b.name)&&str(b.business)&&s.groups.some(g=>g.id===b.groupId),'Name, livelihood and valid group are required');
   groupAccess(user,b.groupId);
   const currency=b.currency||s.settings.currency;
-  assert(validMoney(b.income,currency)&&validMoney(b.expenses,currency)&&Number.isInteger(b.household)&&b.household>=1&&b.household<=30&&Number.isInteger(b.earners)&&b.earners>=0&&b.earners<=b.household,'Check household figures and currency precision');
+  assert(CURRENCIES.includes(currency)&&validMoney(b.income,currency)&&validMoney(b.expenses,currency)&&Number.isInteger(b.household)&&b.household>=1&&b.household<=30&&Number.isInteger(b.earners)&&b.earners>=0&&b.earners<=b.household,'Check household figures and currency precision');
   assert(s.config.acceptedIds.includes(b.identityType)&&typeof b.identitySuffix==='string'&&/^\d{4}$/.test(b.identitySuffix),'Select an accepted ID type and enter only its last four digits');
   const customFields={};
   for(const q of s.config.questions) {

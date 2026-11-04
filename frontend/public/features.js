@@ -110,19 +110,6 @@ export function createOperationsUI(ctx) {
   function correctModal(id) {
     const v=state().visits.find(v=>v.id===id);
     openModal('Correct a field record','The original values remain in correction history. Currency: '+v.currency,formHtml(field('Principal repayment received','paid','number',v.paid,'required min="0" step="0.01"')+field('Savings contributed','savings','number',v.savings,'required min="0" step="0.01"')+select('Attendance','attendance',opts(['present','absent','excused','not-recorded'].map(x=>({id:x,name:x})),'id','name',v.attendance))+select('Loan utilisation check','utilisation',opts(['not-checked','verified','follow-up'].map(x=>({id:x,name:x})),'id','name',v.utilisation))+field('Field notes','note','text',v.note,'maxlength="1000"',true)+field('Reason for correction','reason','text','','required minlength="5" maxlength="500"',true),'Save correction'));
-    const sections={
-      'Add a member':[['currency','Member details'],['income','Household budget'],['identityType','Identity details']],
-      'Record a field visit':[['currency','Visit details'],['paid','Collections'],['utilisation','Observations']],
-      'Record an approved loan':[['memberId','Member & currency'],['principal','Repayment plan']]
-    };
-    const grid=$('#modal-form .form-grid');
-    if(grid&&sections[title]) {
-      for(const [name,label] of sections[title]) {
-        const field=grid.querySelector(`[name="${name}"]`)?.closest('.field');
-        if(field)field.insertAdjacentHTML('beforebegin',`<h3 class="form-section">${label}</h3>`);
-      }
-      $('#modal-form').insertAdjacentHTML('afterbegin','<p class="form-guide">Review the details before saving. Fields marked * are required.</p>');
-    }
     setMoneySteps($('#dialog'),v.currency);
     handleForm(async b=>{await api(`/visits/${id}`,'PATCH',{...b,paid:+b.paid,savings:+b.savings,version:v.version});toast('Correction saved with original values in history.');});
   }
@@ -143,6 +130,7 @@ export function createOperationsUI(ctx) {
     handleForm(async b=>{await api('/followups','POST',b);toast('Follow-up assigned.');});
   }
   function caseModal(id) {
+    const linked=state().supportPlans?.find(p=>p.followupId===id);if(linked){document.dispatchEvent(new CustomEvent('open-support-plan',{detail:linked.id}));return;}
     const f=state().followups.find(f=>f.id===id),canEdit=supervisor()||f.assigneeId===state().user.id;
     openModal(esc(f.title),`${esc(f.assignee)} · Due ${f.dueDate}`,`<p data-no-translate>${esc(f.notes||'No extra notes.')}</p>${canEdit?formHtml(select('Status','status',opts(['open','in-progress','resolved'].map(x=>({id:x,name:x})),'id','name',f.status),true)+field('Outcome / resolution notes','resolution','text',f.resolution,'maxlength="1000"',true),'Update case'):`<p>${esc(f.status)} · ${esc(f.resolution)}</p>`}`);
     if(canEdit)handleForm(async b=>{await api(`/followups/${id}`,'PATCH',{...b,version:f.version});toast('Case updated.');});
@@ -159,7 +147,7 @@ export function createOperationsUI(ctx) {
 
   function queuePage() {
     const meta=bindVault().metadata(),legacy=localStorage.getItem('fl-queue');
-    return heading('Device storage','Offline records','Pending visits stay encrypted on this device until they sync.',button(meta.locked?'Unlock records':'Lock records',meta.locked?'unlock':'lock','shield',true)+button('Sync now','sync','activity'))+`<div class="explain">Use a device passphrase of at least 12 characters. It is never sent to the server. Records lock when you reload or sign out. A forgotten passphrase cannot be recovered. Encryption protects stored records; use a trusted, locked device.</div>${legacy&&state().user.id==='admin'?'<div class="review-strip">Earlier unencrypted pending visits were found. Unlock this vault, then use “Protect earlier records” to migrate them.<button class="text-btn" data-action="migrate-queue">Protect earlier records</button></div>':''}<section class="panel" style="margin-top:24px">${meta.locked?`<div class="empty">${meta.count} encrypted records · Locked</div>`:table(['Member','Date','Amounts','Sync status',''],vault.records.map(v=>`<tr><td>${esc(state().members.find(m=>m.id===v.memberId)?.name||v.memberId)}</td><td>${v.date}</td><td>${money(v.paid,v.currency)} repaid / ${money(v.savings,v.currency)} saved</td><td>${esc(v._error||'Waiting')}</td><td><button class="text-btn" data-action="queue-edit" data-id="${v.id}">Review / edit</button></td></tr>`))}</section>`;
+    return heading('Device storage','Offline records','Pending visits, check-ins and support updates stay encrypted until they sync.',button(meta.locked?'Unlock records':'Lock records',meta.locked?'unlock':'lock','shield',true)+button('Sync now','sync','activity'))+`<div class="explain">Use a device passphrase of at least 12 characters. It is never sent to the server. Records lock when you reload or sign out. A forgotten passphrase cannot be recovered. Encryption protects stored records; use a trusted, locked device.</div>${legacy&&state().user.id==='admin'?'<div class="review-strip">Earlier unencrypted pending visits were found. Unlock this vault, then use “Protect earlier records” to migrate them.<button class="text-btn" data-action="migrate-queue">Protect earlier records</button></div>':''}<section class="panel" style="margin-top:24px">${meta.locked?`<div class="empty">${meta.count} encrypted records · Locked</div>`:table(['Member','Date','Amounts','Sync status',''],vault.records.map(v=>`<tr><td>${esc(state().members.find(m=>m.id===v.memberId)?.name||v.memberId)}</td><td>${v.date}</td><td>${v._kind?esc(v._kind):money(v.paid,v.currency)+' repaid / '+money(v.savings,v.currency)+' saved'}</td><td>${esc(v._error||'Waiting')}</td><td><button class="text-btn" data-action="queue-edit" data-id="${v.id}">Review / edit</button></td></tr>`))}</section>`;
   }
   function unlockModal() {
     openModal('Unlock offline records','Use the same device passphrase each time. Choose one now if this vault is new.',formHtml(field('Device passphrase','password','password','','required minlength="12" autocomplete="off"',true),'Unlock'));
@@ -168,36 +156,28 @@ export function createOperationsUI(ctx) {
   async function queueVisits(visits) {
     bindVault();if(!vault.key)throw new Error('Unlock Offline records before capturing visits without a connection.');
     const next=[...vault.records];
-    for(const v of visits){if(next.some(p=>p.memberId===v.memberId&&p.date===v.date&&inferCurrency(p)===inferCurrency(v))||state().visits.some(p=>p.memberId===v.memberId&&p.date===v.date&&p.currency===inferCurrency(v)))throw new Error('A visit already exists for a selected member and date.');next.push({...v,currency:inferCurrency(v),capturedBy:state().user.id});}
+    for(const v of visits){if(next.some(p=>!p._kind&&p.memberId===v.memberId&&p.date===v.date&&inferCurrency(p)===inferCurrency(v))||state().visits.some(p=>p.memberId===v.memberId&&p.date===v.date&&p.currency===inferCurrency(v)))throw new Error('A visit already exists for a selected member and date.');next.push({...v,currency:inferCurrency(v),capturedBy:state().user.id});}
     await vault.save(next);ctx.setPending(vault.records);
   }
   function queueEdit(id) {
     const v=vault.records.find(v=>v.id===id);
-    openModal('Review pending visit','Edits affect this unsynced copy only. Currency: '+v.currency+'. A matching server record is never overwritten.',formHtml(field('Visit date','date','date',v.date,`required max="${ctx.today()}"`)+select('Attendance','attendance',opts(['present','absent','excused','not-recorded'].map(x=>({id:x,name:x})),'id','name',v.attendance))+field('Repayment','paid','number',v.paid,'required min="0" step="0.01"')+field('Savings','savings','number',v.savings,'required min="0" step="0.01"')+select('Loan','loanId','<option value="">No loan payment</option>'+opts(state().loans.filter(l=>l.memberId===v.memberId&&l.currency===v.currency),'id','id',v.loanId),true)+field('Notes','note','text',v.note,'maxlength="1000"',true),'Save pending changes',`<p class="field-help">${esc(v._error||'Not synced yet.')} If the server already has this visit, correct that server record or discard this pending duplicate after checking it.</p><button class="text-btn" type="button" data-action="queue-discard" data-id="${id}">Discard this pending copy…</button>`));
-    const sections={
-      'Add a member':[['currency','Member details'],['income','Household budget'],['identityType','Identity details']],
-      'Record a field visit':[['currency','Visit details'],['paid','Collections'],['utilisation','Observations']],
-      'Record an approved loan':[['memberId','Member & currency'],['principal','Repayment plan']]
-    };
-    const grid=$('#modal-form .form-grid');
-    if(grid&&sections[title]) {
-      for(const [name,label] of sections[title]) {
-        const field=grid.querySelector(`[name="${name}"]`)?.closest('.field');
-        if(field)field.insertAdjacentHTML('beforebegin',`<h3 class="form-section">${label}</h3>`);
-      }
-      $('#modal-form').insertAdjacentHTML('afterbegin','<p class="form-guide">Review the details before saving. Fields marked * are required.</p>');
+    if(v._kind){
+      const labels={date:'Date',memberId:'Member',response:'Response status',shortfallDays:'Days unable to afford essentials',stress:'Financial stress',essentials:'Unmet essentials',causes:'Reported circumstances',currency:'Currency',income:'Income',expenses:'Spending',explanation:'Household explanation',officerNotes:'Officer observations',supportPreference:'Support preference',borrowing:'Borrowing response',supportHelpfulness:'Support feedback',milestone:'Outcome milestone',action:'Agreed action',notes:'Notes',startDate:'Plan start',dueDate:'Next action due',deliveryStatus:'Delivery status',status:'Case status',receivedDate:'Date received',requestedDate:'Date requested',endedDate:'Support ended',deliveryNotes:'Delivery notes',resolution:'Closure reason',amount:'Expected amount',kind:'Entry type',label:'Purpose',voluntaryConfirmed:'Voluntary response confirmed',agreed:'Household agreement'};
+      const values=Object.entries(v.payload).filter(([key])=>labels[key]).map(([key,value])=>`<div><small>${labels[key]}</small><span data-no-translate>${esc(key==='memberId'?state().members.find(m=>m.id===value)?.name||value:value===null||value===''?'Unknown / not provided':Array.isArray(value)?value.join(', '):typeof value==='boolean'?value?'Yes':'No':value)}</span></div>`).join('');
+      openModal('Review pending household record',esc(v._kind),`<p class="form-error">${esc(v._error||'Waiting to sync')}</p><div class="kv">${values}</div><p class="field-help">For a conflict, compare with the current household record, discard this copy, and re-enter the corrected details. Nothing is discarded automatically.</p><button class="btn secondary" data-action="queue-discard" data-id="${id}">Discard this pending copy…</button>`);return;
     }
+    openModal('Review pending visit','Edits affect this unsynced copy only. Currency: '+v.currency+'. A matching server record is never overwritten.',formHtml(field('Visit date','date','date',v.date,`required max="${ctx.today()}"`)+select('Attendance','attendance',opts(['present','absent','excused','not-recorded'].map(x=>({id:x,name:x})),'id','name',v.attendance))+field('Repayment','paid','number',v.paid,'required min="0" step="0.01"')+field('Savings','savings','number',v.savings,'required min="0" step="0.01"')+select('Loan','loanId','<option value="">No loan payment</option>'+opts(state().loans.filter(l=>l.memberId===v.memberId&&l.currency===v.currency),'id','id',v.loanId),true)+field('Notes','note','text',v.note,'maxlength="1000"',true),'Save pending changes',`<p class="field-help">${esc(v._error||'Not synced yet.')} If the server already has this visit, correct that server record or discard this pending duplicate after checking it.</p><button class="text-btn" type="button" data-action="queue-discard" data-id="${id}">Discard this pending copy…</button>`));
     setMoneySteps($('#dialog'),v.currency);
     handleForm(async b=>{await vault.save(vault.records.map(r=>r.id===id?{...r,...b,paid:+b.paid,savings:+b.savings,_error:''}:r));ctx.setPending(vault.records);toast('Pending copy updated.');});
   }
   async function sync() {
     if(!state())return;if(syncing)return;bindVault();
     if(!navigator.onLine){toast('Offline. Pending records remain on this device.');return;}
-    if(vault.metadata().count&&!vault.key){toast('Unlock Offline records to sync pending visits.');return;}
+    if(vault.metadata().count&&!vault.key){toast('Unlock Offline records to sync pending records.');return;}
     syncing=true;let saved=0,sessionExpired=false;
     try {
       for(const record of [...vault.records]) {
-        try{const {_error,...payload}=record;await api('/visits','POST',payload);await vault.save(vault.records.filter(v=>v.id!==record.id));saved++;}
+        try{const {_error,...payload}=record;if(record._kind)await api(record._path,record._method,record.payload);else await api('/visits','POST',payload);await vault.save(vault.records.filter(v=>v.id!==record.id));saved++;}
         catch(e){if(e.status===401){sessionExpired=true;break;}await vault.save(vault.records.map(v=>v.id===record.id?{...v,_error:e.message}:v));}
       }
       if(sessionExpired){toast('Sign in and unlock the vault to continue syncing. Remaining records are preserved.');return;}
@@ -249,5 +229,6 @@ export function createOperationsUI(ctx) {
       case 'remove-question':target.closest('.question-row').remove();break;
     }}catch(err){const error=$('#dialog[open] .form-error');if(error)error.textContent=err.message;else toast(err.message);}
   });
-  return {enhance,enhanceModal,memberFields,queueVisit:v=>queueVisits([v]),sync,isSyncing:()=>syncing,lock:()=>{vault?.lock();ctx.setPending([]);},pages:{followups:followupsPage,queue:queuePage,staff:staffPage}};
+  async function queueHealth(path,method,payload,kind){bindVault();if(!vault.key)throw new Error('Unlock Offline records before capturing household records.');const id=payload.operationId||payload.id;if(vault.records.some(r=>r.id===id))throw new Error('This record is already queued. Review Offline records.');await vault.save([...vault.records,{id,memberId:payload.memberId,date:payload.date||ctx.today(),_kind:kind,_path:path,_method:method,payload:{...payload,capturedBy:state().user.id}}]);ctx.setPending(vault.records);}
+  return {queueHealth,enhance,enhanceModal,memberFields,queueVisit:v=>queueVisits([v]),sync,isSyncing:()=>syncing,lock:()=>{vault?.lock();ctx.setPending([]);},pages:{followups:followupsPage,queue:queuePage,staff:staffPage}};
 }

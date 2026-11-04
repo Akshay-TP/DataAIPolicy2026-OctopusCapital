@@ -17,3 +17,15 @@ test('offline records encrypt, lock, recover, reject wrong passphrase, and isola
   store.set(other.storageKey,store.get(vault.storageKey));await assert.rejects(()=>other.unlock('device-passphrase-123'),/Unable to unlock/);
   await vault.save([]);assert.equal(vault.metadata().count,0);
 });
+
+test('encrypted queue preserves household unknowns, voluntary responses and versioned support updates',async()=>{
+  const store=new Map();globalThis.localStorage={getItem:key=>store.get(key)||null,setItem:(key,value)=>store.set(key,value)};
+  const vault=new OfflineVault('health-workspace-officer');
+  const records=[
+    {id:'checkin-1',memberId:'member-1',_kind:'Household check-in',_path:'/health/checkins',_method:'POST',payload:{id:'checkin-1',response:'declined',shortfallDays:null,essentials:[],officerNotes:'Private household conversation',capturedBy:'officer'}},
+    {id:'update-1',memberId:'member-1',_kind:'Support update',_path:'/health/plans/plan-1',_method:'PATCH',payload:{operationId:'update-1',version:3,deliveryStatus:'not-received',deliveryNotes:'Programme unavailable',capturedBy:'officer'}}
+  ];
+  await vault.unlock('household-device-passphrase');await vault.save(records);vault.lock();
+  assert.equal(vault.metadata().count,2);assert.ok(!store.get(vault.storageKey).includes('Private household conversation'));
+  await vault.unlock('household-device-passphrase');assert.deepEqual(vault.records,records);
+});

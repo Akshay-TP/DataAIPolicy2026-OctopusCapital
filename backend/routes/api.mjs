@@ -5,6 +5,7 @@ import { scopedWorkspace,requireRole,groupAccess,memberAccess } from '../service
 import { enrollMember } from '../services/members.mjs';
 import { captureVisit } from '../services/visits.mjs';
 import { operations } from './operations.mjs';
+import { healthRoutes } from './health.mjs';
 import { CURRENCIES,LANGUAGES,validMoney } from '../../shared/catalog.mjs';
 
 export function createApiRouter({repository,auth,demo}) {
@@ -23,6 +24,7 @@ export function createApiRouter({repository,auth,demo}) {
       const staff=[{id:'admin',username:'admin',name:demo?'Maya Santos':'Administrator',role:'admin',active:true,groupIds:[]},...repository.listStaff()];
       return json(res,200,{...scopedWorkspace(s,user,staff),demo,user:{id:user.id,name:user.name,role:user.role,groupIds:user.groupIds}});
     }
+    if(healthRoutes({req,res,url,b,s,user,repository,demo,audit}))return;
     if(operations({req,res,url,b,s,user,repository,demo,audit}))return;
     if(path==='/api/groups'&&req.method==='POST') {
       requireRole(user,'admin','supervisor');assert(str(b.name)&&str(b.location)&&str(b.officer)&&date(b.nextMeeting),'Complete all group fields');
@@ -34,7 +36,7 @@ export function createApiRouter({repository,auth,demo}) {
     }
     if(path==='/api/loans'&&req.method==='POST') {
       requireRole(user,'admin','supervisor');const member=memberAccess(s,user,b.memberId),currency=b.currency||member.currency||s.settings.currency;
-      assert(validMoney(b.principal,currency)&&b.principal>0&&validMoney(b.installment,currency)&&b.installment>0&&b.installment<=b.principal&&str(b.purpose)&&date(b.date)&&['weekly','fortnightly','monthly'].includes(b.frequency),'Check loan details and currency precision');
+      assert(CURRENCIES.includes(currency)&&validMoney(b.principal,currency)&&b.principal>0&&validMoney(b.installment,currency)&&b.installment>0&&b.installment<=b.principal&&str(b.purpose)&&date(b.date)&&['weekly','fortnightly','monthly'].includes(b.frequency),'Check loan details and currency precision (PHP or USD for new loans)');
       assert(Math.ceil(b.principal/b.installment)<=600,'Use at most 600 installments per loan');
       const loan={id:'LN-'+randomUUID().slice(0,8),currency,memberId:b.memberId,principal:b.principal,installment:b.installment,purpose:b.purpose.trim(),date:b.date,frequency:b.frequency,status:'active'};
       s.loans.push(loan);audit(s,user,`Recorded externally approved interest-free loan ${loan.id}`);save(s);return json(res,201,loan);

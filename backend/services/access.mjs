@@ -6,5 +6,5 @@ export function scopedWorkspace(s,user,staff) {
   const allowed=user.role==='officer'?s.groups.filter(g=>user.groupIds.includes(g.id)):s.groups;
   const members=s.members.filter(m=>allowed.some(g=>g.id===m.groupId)),ids=new Set(members.map(m=>m.id));
   const visits=s.visits.filter(v=>ids.has(v.memberId)),visitIds=new Set(visits.map(v=>v.id));
-  return {...s,groups:allowed,members,visits,loans:s.loans.filter(l=>ids.has(l.memberId)),followups:s.followups.filter(f=>ids.has(f.memberId)),revisions:s.revisions.filter(r=>visitIds.has(r.visitId)),audit:user.role==='officer'?[]:s.audit,staff:staff.filter(u=>user.role!=='officer'||u.id===user.id).map(({id,name,role,username,active,groupIds})=>({id,name,role,username,active,groupIds}))};
+  return {...s,groups:allowed,members,visits,checkins:(s.checkins||[]).filter(c=>ids.has(c.memberId)),supportPlans:(s.supportPlans||[]).filter(p=>ids.has(p.memberId)),cashflow:(s.cashflow||[]).filter(e=>ids.has(e.memberId)),loans:s.loans.filter(l=>ids.has(l.memberId)),followups:s.followups.filter(f=>ids.has(f.memberId)),revisions:s.revisions.filter(r=>visitIds.has(r.visitId)),audit:user.role==='officer'?[]:s.audit,staff:staff.filter(u=>user.role!=='officer'||u.id===user.id).map(({id,name,role,username,active,groupIds})=>({id,name,role,username,active,groupIds}))};
 }

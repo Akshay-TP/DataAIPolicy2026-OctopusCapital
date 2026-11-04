@@ -31,6 +31,13 @@ export function openRepository({ dataDir, demo }) {
       db.prepare('INSERT INTO schema_migrations(version) VALUES(3)').run();db.exec('COMMIT');
     }catch(error){db.exec('ROLLBACK');throw error;}finally{db.exec('PRAGMA foreign_keys=ON');}
   }
+  if(!db.prepare('SELECT version FROM schema_migrations WHERE version=4').get()) {
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      db.exec(readFileSync(new URL('./migrations/004_household_health.sql',import.meta.url),'utf8'));
+      db.prepare('INSERT INTO schema_migrations(version) VALUES(4)').run();db.exec('COMMIT');
+    }catch(error){db.exec('ROLLBACK');throw error;}
+  }
   const defaults={workspaceId:randomUUID(),language:'en',acceptedIds:['Local government ID','Voter ID','Other approved ID'],questions:[]};
   db.prepare('INSERT OR IGNORE INTO workspace_config VALUES (1,?)').run(JSON.stringify(defaults));
 
@@ -47,13 +54,15 @@ export function openRepository({ dataDir, demo }) {
     }
     const loans = db.prepare('SELECT id, member_id AS memberId, principal, installment, frequency, purpose, started_on AS date, status, currency FROM loans ORDER BY rowid').all();
     const fields=db.prepare('SELECT member_id,payload FROM member_fields').all();
-    members.forEach(m=>{const stored=JSON.parse(fields.find(f=>f.member_id===m.id)?.payload||'{}');m.customFields=stored.values||stored;m.customFieldLabels=stored.labels||{};});
+    members.forEach(m=>{const stored=JSON.parse(fields.find(f=>f.member_id===m.id)?.payload||'{}');m.customFields=stored.values||stored;m.customFieldLabels=stored.labels||{};m.householdKey=stored.householdKey||m.id;});
     const visits = db.prepare('SELECT id, member_id AS memberId, loan_id AS loanId, visited_on AS date, attendance, due, paid, savings, utilisation, note, officer, created_at AS createdAt, version, currency FROM visits ORDER BY rowid').all();
     const audit = db.prepare('SELECT id, occurred_at AS at, actor, action FROM audit_events ORDER BY occurred_at DESC, rowid DESC').all();
     const config={timeZone:'Asia/Manila',...JSON.parse(db.prepare('SELECT payload FROM workspace_config WHERE id=1').get().payload)};
     const revisions=db.prepare('SELECT id,visit_id AS visitId,occurred_at AS at,actor,reason,before_json,after_json FROM visit_revisions ORDER BY occurred_at DESC').all().map(r=>({id:r.id,visitId:r.visitId,at:r.at,actor:r.actor,reason:r.reason,before:JSON.parse(r.before_json),after:JSON.parse(r.after_json)}));
     const followups=db.prepare('SELECT id,member_id AS memberId,title,assignee_id AS assigneeId,assignee,due_on AS dueDate,status,notes,resolution,created_by AS createdBy,created_at AS createdAt,updated_at AS updatedAt,version FROM followups ORDER BY due_on').all();
-    return { settings, config, groups, members, loans, visits, audit, revisions, followups };
+    const payloads=table=>db.prepare(`SELECT payload FROM ${table} ORDER BY rowid`).all().map(r=>JSON.parse(r.payload));
+    return { settings, config, groups, members, loans, visits, audit, revisions, followups,
+      checkins:payloads('household_checkins'),services:payloads('support_services'),supportPlans:payloads('support_plans'),cashflow:payloads('household_cashflow') };
   }
 
   // Atomic upserts keep entity tables separate and preserve foreign-key constraints.
@@ -70,7 +79,7 @@ export function openRepository({ dataDir, demo }) {
       const consent = db.prepare('INSERT INTO consents VALUES (?,?,?,?,?,?,?) ON CONFLICT(member_id) DO UPDATE SET granted=excluded.granted,recipient=excluded.recipient,purpose=excluded.purpose,recorded_at=excluded.recorded_at,expires_at=excluded.expires_at,officer=excluded.officer');
       for (const m of s.members) {
         member.run(m.id,m.name,m.groupId,m.business,m.income,m.expenses,m.household,m.earners,Number(m.kycVerified),m.identityType,m.identitySuffix,m.joined,m.currency||o.currency);
-        db.prepare('INSERT INTO member_fields VALUES (?,?) ON CONFLICT(member_id) DO UPDATE SET payload=excluded.payload').run(m.id,JSON.stringify({values:m.customFields||{},labels:m.customFieldLabels||{}}));
+        db.prepare('INSERT INTO member_fields VALUES (?,?) ON CONFLICT(member_id) DO UPDATE SET payload=excluded.payload').run(m.id,JSON.stringify({values:m.customFields||{},labels:m.customFieldLabels||{},householdKey:m.householdKey||m.id}));
         if (m.consent) { const c=m.consent; consent.run(m.id,Number(c.granted),c.recipient||null,c.purpose||null,c.at,c.expires||null,c.officer||null); }
       }
       const loan = db.prepare('INSERT INTO loans VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING');
@@ -81,6 +90,14 @@ export function openRepository({ dataDir, demo }) {
       (s.revisions||[]).forEach(r=>revision.run(r.id,r.visitId,r.at,r.actor,r.reason,JSON.stringify(r.before),JSON.stringify(r.after)));
       const followup=db.prepare('INSERT INTO followups VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET title=excluded.title,assignee_id=excluded.assignee_id,assignee=excluded.assignee,due_on=excluded.due_on,status=excluded.status,notes=excluded.notes,resolution=excluded.resolution,updated_at=excluded.updated_at,version=excluded.version');
       (s.followups||[]).forEach(f=>followup.run(f.id,f.memberId,f.title,f.assigneeId,f.assignee,f.dueDate,f.status,f.notes,f.resolution,f.createdBy,f.createdAt,f.updatedAt,f.version));
+      const checkin=db.prepare('INSERT INTO household_checkins VALUES(?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload');
+      (s.checkins||[]).forEach(c=>checkin.run(c.id,c.memberId,c.date,c.planId||null,JSON.stringify(c)));
+      const service=db.prepare('INSERT INTO support_services VALUES(?,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload');
+      (s.services||[]).forEach(x=>service.run(x.id,JSON.stringify(x)));
+      const plan=db.prepare('INSERT INTO support_plans VALUES(?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET service_id=excluded.service_id,payload=excluded.payload');
+      (s.supportPlans||[]).forEach(p=>plan.run(p.id,p.memberId,p.baselineId,p.serviceId||null,p.followupId,JSON.stringify(p)));
+      const cashflow=db.prepare('INSERT INTO household_cashflow VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload');
+      (s.cashflow||[]).forEach(e=>cashflow.run(e.id,e.memberId,e.date,JSON.stringify(e)));
       const event = db.prepare('INSERT OR IGNORE INTO audit_events VALUES (?,?,?,?)');
       s.audit.forEach(a => event.run(a.id,a.at,a.actor,a.action));
       db.exec('COMMIT');

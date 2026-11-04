@@ -20,7 +20,7 @@ export class OfflineVault {
     this.key=key;this.salt=salt;this.records=records;
   }
   async save(records) {
-    if(!this.key)throw new Error('Unlock Offline records before capturing visits without a connection.');
+    if(!this.key)throw new Error('Unlock Offline records before capturing records without a connection.');
     const iv=crypto.getRandomValues(new Uint8Array(12));
     const encrypted=await crypto.subtle.encrypt({name:'AES-GCM',iv,additionalData:encoder.encode(this.owner)},this.key,encoder.encode(JSON.stringify(records)));
     localStorage.setItem(this.storageKey,JSON.stringify({version:1,count:records.length,salt:base64(this.salt),iv:base64(iv),data:base64(new Uint8Array(encrypted))}));

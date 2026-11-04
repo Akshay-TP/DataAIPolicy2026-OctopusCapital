@@ -11,8 +11,8 @@ import {openRepository} from '../database/repository.mjs';
 import {indicators} from '../backend/services/indicators.mjs';
 
 test('currency precision and per-currency totals do not silently combine money',()=>{
-  assert.ok(CURRENCIES.includes('HKD'));assert.equal(currencyDigits('JPY'),0);assert.equal(currencyDigits('USD'),2);
-  assert.equal(validMoney(1.25,'USD'),true);assert.equal(validMoney(1.255,'USD'),false);assert.equal(validMoney(1.5,'JPY'),false);assert.equal(validMoney(20000,'VND'),true);
+  assert.deepEqual(CURRENCIES,['PHP','USD']);assert.equal(currencyDigits('JPY'),0);assert.equal(currencyDigits('USD'),2);
+  assert.equal(validMoney(1.25,'USD'),true);assert.equal(validMoney(1.255,'USD'),false);assert.equal(validMoney(1.5,'JPY'),false);assert.equal(validMoney(20000,'VND'),false);
   assert.equal(validMoney(10,'INVALID'),false);
   assert.deepEqual(totalsByCurrency([{currency:'PHP',paid:100},{currency:'USD',paid:5.25},{currency:'PHP',paid:50}],'paid'),{PHP:150,USD:5.25});
   assert.match(formatMoney(1.25,'USD','hi'),/USD/);assert.match(formatMoney(1.25,'USD'),/1\.25/);
@@ -67,8 +67,8 @@ test('multi-currency API keeps loan, receipt, corrections and defaults consisten
     assert.equal((await request('/loans/'+loan.body.id+'/schedule')).body.currency,'USD');
     assert.equal((await request('/visits/usd-visit','PATCH',{...visit,version:1,reason:'Correction attempt',currency:'EUR'})).status,400);
     assert.equal((await request('/loans','POST',{memberId:'MEM-001',currency:'JPY',principal:100.5,installment:10,frequency:'monthly',purpose:'Test',date:'2026-10-01'})).status,400);
-    assert.equal((await request('/loans','POST',{memberId:'MEM-001',currency:'JPY',principal:1000,installment:100,frequency:'monthly',purpose:'Test',date:'2026-10-01'})).status,201);
-    assert.equal((await request('/config','POST',{...s.config,language:'hi'})).status,200);
+    assert.equal((await request('/loans','POST',{memberId:'MEM-001',currency:'JPY',principal:1000,installment:100,frequency:'monthly',purpose:'Test',date:'2026-10-01'})).status,400);
+    assert.equal((await request('/config','POST',{...s.config,language:'fil'})).status,200);
     assert.equal((await request('/config','POST',{...s.config,language:'xx'})).status,400);
     s=(await request('/workspace')).body;assert.equal(s.visits.find(v=>v.id==='usd-visit').currency,'USD');assert.equal(s.visits.find(v=>v.id==='php-visit').currency,'PHP');
     const shared=await fetch(url+'/shared/catalog.mjs');assert.equal(shared.status,200);assert.match(shared.headers.get('content-type'),/javascript/);
