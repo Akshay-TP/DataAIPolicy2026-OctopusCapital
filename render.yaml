@@ -14,5 +14,5 @@ services:
         value: demo          # anything except "production" enables demo mode
       - key: COOKIE_SECURE
         value: "true"
-      - key: DATABASE_KEY
+      - key: DATABASE_KEY   # optional: the image generates its own key when none is set
         generateValue: true

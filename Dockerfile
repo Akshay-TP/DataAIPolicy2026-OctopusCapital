@@ -4,12 +4,16 @@ RUN apk add --no-cache python3 make g++
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
+# Fail the build now, not at runtime, if the encrypted-SQLite driver cannot load.
+RUN node -e "const D=require('better-sqlite3-multiple-ciphers');new D(':memory:').close();console.log('database driver OK')"
 
 # ---- Stage 2: small runtime image without compilers ----
 FROM node:24-alpine
-# Defaults describe a private production workspace. For a public demo, override
-# DEMO_MODE=true and NODE_ENV (anything but "production"); see render.yaml.
-ENV NODE_ENV=production HOST=0.0.0.0 PORT=3000 DATA_DIR=/app/data DEMO_MODE=false
+# Defaults make the image a ready-to-run public DEMO (synthetic data, passwordless demo sign-in,
+# self-generated database key), so it deploys with no environment variables.
+# For real records override: DEMO_MODE=false NODE_ENV=production ADMIN_PASSWORD DATABASE_KEY
+# (compose.yaml already does this).
+ENV NODE_ENV=demo DEMO_MODE=true COOKIE_SECURE=true HOST=0.0.0.0 PORT=3000 DATA_DIR=/app/data
 WORKDIR /app
 COPY --chown=node:node package.json package-lock.json ./
 COPY --from=deps --chown=node:node /app/node_modules ./node_modules
