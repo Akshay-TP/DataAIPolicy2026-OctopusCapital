@@ -1,4 +1,4 @@
-const CACHE = 'fieldledger-shell-v30';
+const CACHE = 'fieldledger-shell-v31';
 const SHELL = [
   '/certificates.js',
   '/shared/certificates.mjs',

@@ -165,9 +165,9 @@ export function createSupportUI(ctx) {
     const flags = payFlags(s(), today());
     const title = workers ? 'Workers & families' : page === 'prospects' ? 'Second chance' : 'Loan-use checks';
     const subtitle = workers
-      ? 'Record pay, money taken from pay, debt and help needed. Start by adding a worker or family, or open an existing record.'
+      ? 'Record money sent home, pay, money taken from pay, debt and help needed. An unknown amount stays unknown; it is never treated as zero. Start by adding a worker or family, or open an existing record.'
       : page === 'prospects'
-        ? 'Keep meeting records for people who need another loan review. These records do not decide who gets a loan.'
+        ? 'Keep records for people who were refused or may deserve another look: meetings attended, money sent home, loan use and the reason for refusal. These records do not decide who gets a loan. A person does.'
         : 'Record what the loan paid for and whether it is working. Keep what the family says separate from what you see.';
     return (
       heading(
@@ -183,7 +183,7 @@ export function createSupportUI(ctx) {
         )
       ) +
       (workers
-        ? `<div class="support-niches"><button type="button" class="support-pathway ${filter === 'domestic-worker' ? 'selected' : ''}" data-support-pathway="domestic-worker" aria-pressed="${filter === 'domestic-worker'}"><small>India</small><strong>Workers in India</strong><span>Pay and money borrowed for work</span></button><button type="button" class="support-pathway ${filter === 'overseas-worker' ? 'selected' : ''}" data-support-pathway="overseas-worker" aria-pressed="${filter === 'overseas-worker'}"><small>Overseas</small><strong>Indian workers abroad</strong><span>Pay, job-related debt and money sent home</span></button></div>`
+        ? `<div class="support-niches"><button type="button" class="support-pathway ${filter === 'overseas-worker' ? 'selected' : ''}" data-support-pathway="overseas-worker" aria-pressed="${filter === 'overseas-worker'}"><small>Money from abroad</small><strong>Families of workers abroad</strong><span>Money sent home, salary delays and job-related debt</span></button><button type="button" class="support-pathway ${filter === 'domestic-worker' ? 'selected' : ''}" data-support-pathway="domestic-worker" aria-pressed="${filter === 'domestic-worker'}"><small>Work in India</small><strong>Workers in India</strong><span>Pay and money borrowed for work</span></button></div>`
         : '') +
       (s().demo && !s().supportPeople.length
         ? `<div class="review-strip">Try the screens with made-up people and records. ${button('Add sample records', 'support-demo', 'plus', true)}</div>`
@@ -213,7 +213,7 @@ export function createSupportUI(ctx) {
     const id = crypto.randomUUID();
     openModal(
       'Add a person or family',
-      'Start a record for the person or family. They do not need a bank account or Sahayog membership. Do not enter full ID numbers.',
+      'An officer records this, or the family does with the officer’s help. They do not need a bank account or Sahayog membership. Do not enter full ID numbers.',
       form(
         field('Name the person wants to use', 'name', 'text', '', 'required maxlength="120"', true) +
           select(

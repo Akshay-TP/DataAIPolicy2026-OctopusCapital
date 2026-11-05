@@ -422,7 +422,7 @@ export function createHouseholdUI(ctx) {
       heading(
         'Track progress',
         'Progress reports',
-        'Compare how families are doing before and after help. A change does not prove the app or the help caused it.',
+        'Compare how families are doing before and after help. Green ▼ means fewer days short of money (better); red ▲ means more (worse). A change does not prove the app or the help caused it.',
         button('Download summary spreadsheet', 'hh-export', 'down', true)
       ) +
       `<form id="outcome-filters" class="panel outcome-filters">${field('First check-in: from', 'from', 'date', reportFilters.from || '')}${field('First check-in: to', 'to', 'date', reportFilters.to || '')}${field('As of', 'asOf', 'date', reportFilters.asOf || today(), `required max="${today()}"`)}${select(
@@ -440,8 +440,15 @@ export function createHouseholdUI(ctx) {
       ${r.milestones
         .map(
           m =>
-            `<section class="panel health-section"><div class="panel-header"><div><h2>${m.day}-day family progress</h2><p class="panel-description">${m.due} due · ${m.notDue} not yet due · ${m.paired} families answered both times</p></div></div><div class="panel-body"><div class="health-metrics">${metric('Days short of money: first check-in', fmt(m.baselineMean), 'Average for families who answered both times')}${metric('Days short of money: later check-in', fmt(m.followupMean), 'Days in the last 30')}${metric('Fewer / same / more days short of money', `${m.improved} / ${m.unchanged} / ${m.worsened}`, 'Families who answered both times')}${metric('Families without both answers', m.due - m.paired, `${m.declined} declined · ${m.unavailable} unavailable · ${m.missing} missing/unknown`)}</div><p class="field-help">${m.late} families answered outside the allowed dates. Change in money worries: ${fmt(m.stressChange)} points for ${m.stressPairs} families who answered both times (a negative number means less worry). Borrowing reported: ${m.borrowingBefore} → ${m.borrowingAfter} for ${m.borrowingPairs} families who answered yes or no both times.</p>${rows(
-              ['Household', 'Follow-up due', 'Days short of money at the first check-in', 'Days short of money at the later check-in', 'Status', ''],
+            `<section class="panel health-section"><div class="panel-header"><div><h2>${m.day}-day family progress</h2><p class="panel-description">${m.due} due · ${m.notDue} not yet due · ${m.paired} families answered both times</p></div></div><div class="panel-body"><div class="health-metrics">${metric('Days short of money: first check-in', fmt(m.baselineMean), 'Average for families who answered both times')}${metric('Days short of money: later check-in', fmt(m.followupMean), 'Days in the last 30')}${metric('Change in days short of money', `<span class="trend good"><i aria-hidden="true">▼</i> ${m.improved} fewer <em>(better)</em></span><span class="trend bad"><i aria-hidden="true">▲</i> ${m.worsened} more <em>(worse)</em></span><span class="trend same">${m.unchanged} no change</span>`, 'Families who answered both times')}${metric('Families without both answers', m.due - m.paired, `${m.declined} declined · ${m.unavailable} unavailable · ${m.missing} missing/unknown`)}</div><p class="field-help">${m.late} families answered outside the allowed dates. Change in money worries: ${fmt(m.stressChange)} points for ${m.stressPairs} families who answered both times (a negative number means less worry). Borrowing reported: ${m.borrowingBefore} → ${m.borrowingAfter} for ${m.borrowingPairs} families who answered yes or no both times.</p>${rows(
+              [
+                'Household',
+                'Follow-up due',
+                'Days short of money at the first check-in',
+                'Days short of money at the later check-in',
+                'Status',
+                '',
+              ],
               m.rows.map(
                 row =>
                   `<tr><td>${safeName(row.memberId)}</td><td>${row.due}</td><td>${row.baselineDays}</td><td>${row.followupDays ?? '—'}</td><td>${row.status === 'unavailable' ? label('unavailable') : row.status === 'declined' ? label('declined') : esc(row.status)}</td><td><button class="text-btn" data-action="hh-plan-open" data-id="${row.planId}">Open plan</button></td></tr>`
@@ -456,7 +463,13 @@ export function createHouseholdUI(ctx) {
     const base = result.base,
       stress = result.stress;
     return `<div class="planner-summary"><div><small>First date money may run short</small><strong>${base.firstGap || 'None in this plan'}</strong><span>Largest gap: ${money(base.maxGap, 'KHR')}</span></div><div><small>If the riel loses value +${result.assumptions.stressPercent}%</small><strong>${stress.firstGap || 'No shortfall'}</strong><span>Largest gap: ${money(stress.maxGap, 'KHR')}</span></div></div><p class="field-help">The riel total assumes money can be exchanged at the rate you entered. Each currency is also shown separately. If one currency is short, the family may need to exchange money or get help, even if the combined total is positive. The app does not exchange money.</p>${rows(
-      ['Date', 'Riel available', 'US dollars available', 'Total in riel at the entered rate', 'If the exchange rate worsens'],
+      [
+        'Date',
+        'Riel available',
+        'US dollars available',
+        'Total in riel at the entered rate',
+        'If the exchange rate worsens',
+      ],
       base.rows.map(
         (r, i) =>
           `<tr><td>${r.date}</td><td class="${r.khr < 0 ? 'cash-gap' : ''}">${money(r.khr, 'KHR')}</td><td class="${r.usd < 0 ? 'cash-gap' : ''}">${money(r.usd, 'USD')}</td><td class="${r.gap ? 'cash-gap' : ''}">${money(r.balance, 'KHR')}<div class="field-help">${r.gap ? 'Expected shortfall' : r.requiresExchange ? 'Conversion needed' : ''}</div></td><td class="${stress.rows[i].gap ? 'cash-gap' : ''}">${money(stress.rows[i].balance, 'KHR')}</td></tr>`
@@ -663,7 +676,10 @@ export function createHouseholdUI(ctx) {
         ctx.render();
       });
     if (page === 'overview')
-      $('.quick-actions')?.insertAdjacentHTML('afterbegin', button('Check in with a family', 'hh-check', 'people', true));
+      $('.quick-actions')?.insertAdjacentHTML(
+        'afterbegin',
+        button('Check in with a family', 'hh-check', 'people', true)
+      );
     if (page === 'meetings')
       $('.page-heading .actions')?.insertAdjacentHTML(
         'beforeend',

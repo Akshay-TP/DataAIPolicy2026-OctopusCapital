@@ -1,10 +1,10 @@
 # FieldLedger
 
-FieldLedger is free, open-source, self-hosted software for field teams supporting workers and financially vulnerable households in India. It brings worker pay and debt records, practical support cases, prospective-member participation and livelihood checks into one offline-first workspace. It produces no credit score and requires no BR.NET, banking, payroll or employer integration.
+FieldLedger is free, open-source, self-hosted software that helps lenders and field teams in rural India collect the information that loan decisions are missing. Around 10–15 in every 100 rural applicants are refused for lack of recorded data, and many are women borrowing through groups where members share responsibility for repayment (joint liability lending). FieldLedger works alongside a lender's existing records (such as Sahayog's BR.NET) and adds what those records lack, especially money sent home by family working abroad. Officers record it, or families record it with an officer's help, in one offline-first workspace. Open-source and free to use; each organisation maintains its own copy at minimal cost. It produces no credit score and requires no BR.NET, banking, payroll or employer integration.
 
 ## Worker and family support
 
-The two main pathways cover work and advance debt in India, including concerns that may require bonded-labour specialist assistance, and Indian overseas workers and their families. A worker can have a standalone support profile; an existing Sahayog or other organisation member reference is optional.
+The two main pathways cover Indian overseas workers and their families (remittances, salary delays, job-related debt) and workers in India who owe money tied to their work. A worker can have a standalone support profile; an existing Sahayog or other organisation member reference is optional.
 
 - **Pay:** record expected take-home pay by period and due date, followed by actual receipts. Partial receipts accumulate; no record or an unknown amount stays unconfirmed. Expected take-home is already after anticipated deductions.
 - **Debt:** record recruitment loans, work advances and other reported debt, with opening balances, subsequent advances and repayments. Unknown opening amounts produce unknown balances; interest and fees are not inferred. Disputed debt remains labelled.

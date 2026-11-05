@@ -238,7 +238,10 @@ function offlineLogin() {
       const input = new FormData(form),
         vault = new OfflineVault(input.get('owner'));
       await vault.unlock(input.get('password'));
-      if (!vault.workspace) throw new Error('No records are saved here yet. Connect, sign in and open Offline records to set up this device.');
+      if (!vault.workspace)
+        throw new Error(
+          'No records are saved here yet. Connect, sign in and open Offline records to set up this device.'
+        );
       operationsUI.adoptVault(vault);
       serverState = vault.workspace;
       pending = vault.records;
@@ -408,6 +411,14 @@ function button(label, action, ic = 'plus', secondary = false, extra = '') {
 function stat(label, value, detail, index) {
   return `<div class="stat"><div class="stat-head"><span class="stat-index">${index}</span>${label}</div><div class="value">${value}</div><div class="detail">${detail}</div></div>`;
 }
+function story() {
+  return `<section class="story" aria-label="Why FieldLedger">
+    <div class="wide"><h3>The problem</h3><p>Around 10–15 of every 100 rural applicants are turned down for a loan, mostly because there is too little recorded information about how their household really manages money. Many are women: loans are made to groups where members stand behind each other’s repayments (joint liability lending), so one weak record can hold back a whole group. A refusal can push a family towards informal lenders and deeper debt.</p></div>
+    <div><h3>How it works today</h3><ul><li>Lenders see repayments, but not money sent home by family working abroad.</li><li>That income is irregular, so it is often not counted as stable.</li><li>A refusal is rarely written down with its reason, so nobody knows to look again.</li></ul></div>
+    <div><h3>What changes</h3><ul><li>Officers record remittances, late salaries, loan use and missed payments, alongside the lender’s existing records.</li><li>Families can take part with an officer’s help. They never have to enter data themselves, and no smartphone or bank account is needed.</li><li>The <strong>Second chance</strong> page lists people to look at again, with the reason. A person decides.</li></ul></div>
+    <div class="wide"><p class="field-help">Who may still be missed: families with no contact with the worker abroad have no remittances to record. Unknown is never treated as zero. Use loan-use checks, group attendance and household check-ins for them, and ask your team if a family is not showing up in your records.</p></div>
+  </section>`;
+}
 function overview() {
   const reviews = state.members.filter(m => reasons(m).length);
   const dues = state.visits.filter(v => v.due > 0);
@@ -440,6 +451,7 @@ function overview() {
     ) +
     `
     <div class="quick-actions" aria-label="Quick actions"><span>Quick actions</span>${button('Add member', 'member', 'people', true)}${button('Group meetings', 'open-meetings', 'calendar', true)}${button('Follow-ups', 'open-followups', 'clock', true)}<small>Financial totals in ${currency()}</small></div>
+    ${story()}
     <div class="stats">
       ${stat('Members', state.members.length, `In ${state.groups.length} community groups`, '01')}
       ${stat('Outstanding principal', money(inCurrency(state.loans).reduce((n, l) => n + outstanding(l), 0)), `${inCurrency(state.loans).filter(l => outstanding(l) > 0).length} loans with a balance`, '02')}
@@ -640,7 +652,11 @@ function consentPage() {
 }
 function settingsPage() {
   return (
-    heading('Workspace settings', 'Organization', 'Update your organisation’s details, make a backup or see recent changes.') +
+    heading(
+      'Workspace settings',
+      'Organization',
+      'Update your organisation’s details, make a backup or see recent changes.'
+    ) +
     `<div class="settings-grid"><section class="panel"><div class="panel-header"><h2>Organisation details</h2></div><form id="settings-form" class="panel-body"><div class="form-grid">${field('Organization name', 'name', 'text', state.settings.name, 'required', true)}${field('Country', 'country', 'text', state.settings.country, 'required')}<label class="field">Default currency<select name="currency">${CURRENCIES.map(c => `<option ${state.settings.currency === c ? 'selected' : ''}>${c}</option>`).join('')}</select></label></div><p class="field-help">This currency is used for new records only. Earlier amounts stay in their original currencies. The app does not convert money.</p><div class="form-error" role="alert"></div><div class="form-actions"><button class="btn">Save preferences</button></div></form></section><section class="panel"><div class="panel-header"><h2>Hosting & access</h2></div><div class="panel-body"><div class="explain"><strong>MIT licensed · No subscription fees</strong><br>Node.js 24 + SQLite. No paid API, cloud account or external banking software required. Run on a local server or your own infrastructure.</div><p class="online-note">Administrators manage the app, supervisors review records, and field officers see their assigned groups. Password-protected backups are available. This is not a full accounting system. Review your setup before using real records.</p><p class="online-note">Your organisation keeps records on its own server. A shared profile describes recorded facts; it is not a credit score.</p></div></section></div><section class="panel" style="margin-top:24px"><div class="panel-header"><h2>Recent changes</h2><span class="pill">Latest 30 events</span></div><div class="panel-body">${
       state.audit
         .slice(0, 30)
@@ -817,7 +833,13 @@ function visitModal(groupId, memberId) {
           '<option value="present">Present</option><option value="absent">Absent</option><option value="excused">Excused absence</option><option value="not-recorded">Not recorded</option>'
         ) +
         select('Loan being repaid', 'loanId', '<option value="">No loan payment</option>') +
-        field('Amount borrowed repayment received', 'paid', 'number', 0, 'required min="0" step="0.01" max="100000000"') +
+        field(
+          'Amount borrowed repayment received',
+          'paid',
+          'number',
+          0,
+          'required min="0" step="0.01" max="100000000"'
+        ) +
         field('Savings contributed', 'savings', 'number', 0, 'required min="0" step="0.01" max="100000000"') +
         select(
           'Loan loan-use check',

@@ -4,7 +4,7 @@ FieldLedger extends field support without a live BR.NET integration. It uses opt
 
 ## Main pathways
 
-- Work and advance debt in India, including reported concerns requiring specialist bonded-labour support.
+- Work and advance debt in India, with referral to specialist support where a worker reports a concern.
 - Indian overseas workers and their families: recruitment debt, salary receipts, deductions and remittances.
 
 ## Smaller modules
