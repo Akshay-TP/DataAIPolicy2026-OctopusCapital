@@ -673,3 +673,12 @@ dialog { border-radius: 12px; max-height: 92dvh; }
 @media(max-width:700px){.certificate-fields,.certificate-imports{grid-template-columns:1fr}.certificate-tabs{flex-wrap:wrap}}
 @media print{.certificate-qr{width:115mm;height:115mm;max-width:none;break-inside:avoid}.certificate-paper{font-size:10pt}.certificate-fields{grid-template-columns:1fr 1fr}.certificate-paper>h2{font-size:18pt}}
 .certificate-json {white-space:pre-wrap;overflow-wrap:anywhere;font-size:11px;line-height:1.7;background:#f5f5f0;padding:14px;border-radius:6px}
+
+.review-queue{padding:18px 22px;margin:0 0 18px}
+.review-queue .section-title small{font-weight:500;color:#526253;margin-left:8px}
+.queue-item{display:grid;grid-template-columns:minmax(140px,220px) 1fr auto;gap:16px;align-items:start;padding:12px 0;border-top:1px solid #dfe7df}
+.queue-item small{display:block;color:#526253;font-size:12px;margin-top:2px}
+.queue-item ul{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.queue-item li span{font-size:13px;font-weight:600}
+.queue-item li.queue-note span{font-weight:500;color:#526253}
+@media(max-width:700px){.queue-item{grid-template-columns:1fr}}

@@ -369,7 +369,7 @@ test('household workflow persists, scopes access, handles retries and conflicts,
     assert.equal((await admin('/health/outcomes?asOf=2026-02-15')).body.households, 23);
     const archive = (await admin('/backup', 'POST', { password: 'backup-health-passphrase' })).body;
     const payload = decryptBackup(archive, 'backup-health-passphrase');
-    assert.equal(payload.schema, 7);
+    assert.equal(payload.schema, 8);
     expected = payload.workspace;
     const restoreDir = mkdtempSync(join(tmpdir(), 'fl-health-restored-')),
       repo = openRepository({ dataDir: restoreDir, demo: false });

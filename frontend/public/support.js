@@ -4,6 +4,9 @@ import {
   debtPosition,
   payFlags,
   participationSummary,
+  reviewQueue,
+  REFUSAL_CATEGORIES,
+  FIXABLE,
   SUPPORT_ROUTES,
   displaySupportValue,
 } from '../../shared/support.mjs';
@@ -121,6 +124,31 @@ export function createSupportUI(ctx) {
         .join(' · ') || 'No amounts recorded'
     );
   }
+  let queueExpanded = false;
+  function queuePanel() {
+    const queue = reviewQueue(s(), today()),
+      shown = queueExpanded ? queue : queue.slice(0, 8);
+    if (!queue.length)
+      return '<section class="panel review-queue"><h3 class="section-title">People to look at again</h3><p class="field-help">Nothing needs another look right now. This list is only a reminder and says nothing about who is eligible.</p></section>';
+    const rows = shown
+      .map(entry => {
+        const p = s().supportPeople.find(x => x.id === entry.personId);
+        return `<article class="queue-item"><div><strong data-no-translate>${esc(p.name)}</strong><small>Waiting ${entry.waitingDays} days</small></div><ul>${entry.prompts
+          .map(
+            prompt =>
+              `<li class="${prompt.note ? 'queue-note' : ''}"><span>${esc(prompt.rule)}</span><small data-no-translate>${esc(prompt.evidence)}</small></li>`
+          )
+          .join('')}</ul>${action('Open record', 'profile', p.id)}</article>`;
+      })
+      .join('');
+    return `<section class="panel review-queue"><h3 class="section-title">People to look at again <small>${queue.length} waiting</small></h3><p class="field-help">These are reminders for staff, listed by how long they have waited. They are not a score and do not rank anyone. Someone who is not listed has not been judged ineligible, and being listed does not decide anything.</p>${rows}${
+      queue.length > shown.length
+        ? `<button class="text-btn" data-action="support-queue-more">Show all ${queue.length}</button>`
+        : queueExpanded && queue.length > 8
+          ? '<button class="text-btn" data-action="support-queue-less">Show fewer</button>'
+          : ''
+    }</section>`;
+  }
   function directory(page) {
     const workers = page === 'workers',
       wanted = workers
@@ -161,8 +189,9 @@ export function createSupportUI(ctx) {
         ? `<div class="review-strip">Try the screens with made-up people and records. ${button('Add sample records', 'support-demo', 'plus', true)}</div>`
         : '') +
       (s().demo && s().user.role === 'admin' && !s().config.bulkDemoLoaded
-        ? `<div class="review-strip">Want more examples? Add about 70 made-up members and their records. ${button('Add more sample records', 'support-bulk', 'plus', true)}</div>`
+        ? `<div class="review-strip">Want more examples? Add about 230 made-up members, with their loans and weekly visits, and over 200 records for workers and people waiting for review. ${button('Add more sample records', 'support-bulk', 'plus', true)}</div>`
         : '') +
+      (page === 'prospects' ? queuePanel() : '') +
       `<div class="toolbar"><input class="search-input" id="support-search" aria-label="Search support profiles" placeholder="Search by name or member reference…" value="${esc(search)}">${workers ? `<select id="support-filter" aria-label="Type of worker"><option value="">All workers</option>${wanted.map(k => `<option value="${k}" ${filter === k ? 'selected' : ''}>${kinds[k]}</option>`).join('')}</select>` : ''}</div>` +
       table(
         ['Person / reference', workers ? 'Worker type' : 'Latest record', 'Needs attention', ''],
@@ -276,7 +305,7 @@ export function createSupportUI(ctx) {
       debts = (s().workerDebts || []).filter(r => r.personId === id),
       remits = (s().remittances || []).filter(r => r.personId === id);
     const controls = p.consented
-      ? `<div class="actions support-actions">${worker ? action('Add expected pay', 'pay', id) + action('Record debt', 'debt', id) + action('Record money sent home', 'remit', id) : p.kind === 'prospective' ? action('Record meeting', 'meeting', id) + (s().user.role !== 'officer' ? action('Record loan review', 'review', id) : '') : ''}${action('Livelihood check', 'asset', id)}${action('Create support case', 'newcase', id)}</div>`
+      ? `<div class="actions support-actions">${worker ? action('Add expected pay', 'pay', id) + action('Record debt', 'debt', id) + action('Record money sent home', 'remit', id) : p.kind === 'prospective' ? action('Record meeting', 'meeting', id) + action('Record why a loan was refused', 'refusal', id) + (s().user.role !== 'officer' ? action('Record loan review', 'review', id) : '') : ''}${action('Livelihood check', 'asset', id)}${action('Create support case', 'newcase', id)}</div>`
       : '<div class="review-strip">Permission was withdrawn. You can read earlier records, but cannot add new ones.</div>';
     openModal(
       'Person’s record',
@@ -326,6 +355,14 @@ export function createSupportUI(ctx) {
         .map(
           r =>
             `<tr class="${r.voided ? 'voided' : ''}"><td>${r.date}</td><td>${esc(displaySupportValue(r.attendance))}</td><td>${unknown(r.savings, r.currency)}</td><td>${provenance(r)}${correction(r, 'participation')}</td></tr>`
+        )
+    )}<h3 class="section-title">Why a loan was refused <small>Decided by the lender, outside FieldLedger</small></h3>${table(
+      ['Date', 'Main reason', 'Can it be fixed?', 'Explanation', ''],
+      (s().refusals || [])
+        .filter(r => r.personId === p.id)
+        .map(
+          r =>
+            `<tr class="${r.voided ? 'voided' : ''}"><td>${r.date}</td><td>${esc(displaySupportValue(r.category))}</td><td>${esc(displaySupportValue(r.fixable))}</td><td data-no-translate>${esc(r.reason)}${r.missingItems?.length ? `<div class="field-help">Would address: ${esc(r.missingItems.join('; '))}</div>` : ''}</td><td>${provenance(r)}${correction(r, 'refusals')}</td></tr>`
         )
     )}<h3 class="section-title">Previous loan reviews</h3>${table(
       ['Date', 'Lender’s decision', 'Reason', ''],
@@ -418,7 +455,11 @@ export function createSupportUI(ctx) {
       field('Why was money taken from pay?', 'label', 'text', '', 'required maxlength="120"', true) +
         field('Date', 'date', 'date', today(), `required max="${today()}"`) +
         inputNumber('Deducted amount · ' + pay.currency + ' (optional)', 'amount', '', true) +
-        select('Does the worker agree with this deduction?', 'status', choices(['unknown', 'agreed', 'disputed'], 'unknown')) +
+        select(
+          'Does the worker agree with this deduction?',
+          'status',
+          choices(['unknown', 'agreed', 'disputed'], 'unknown')
+        ) +
         select(
           'Did this repay a recorded debt? (optional)',
           'debtId',
@@ -502,6 +543,32 @@ export function createSupportUI(ctx) {
         note('Why did the lender make this decision?', 'reason'),
       b => b,
       'Record the lender’s review'
+    );
+  }
+  function refusal(p) {
+    createRecord(
+      'refusals',
+      p,
+      field('Date the lender decided', 'date', 'date', today(), `required max="${today()}"`) +
+        select('Main reason', 'category', choices(REFUSAL_CATEGORIES, 'documentation')) +
+        select('Can it be fixed?', 'fixable', choices(FIXABLE, 'unknown')) +
+        field(
+          'What would address it (optional, separate with ;)',
+          'missingItems',
+          'text',
+          '',
+          'maxlength="300"',
+          true
+        ) +
+        note('Reason, in the lender’s words', 'reason'),
+      b => ({
+        ...b,
+        missingItems: (b.missingItems || '')
+          .split(';')
+          .map(x => x.trim())
+          .filter(Boolean),
+      }),
+      'Record why a loan was refused'
     );
   }
   function asset(p) {
@@ -710,7 +777,10 @@ export function createSupportUI(ctx) {
     openModal(
       'Mark an entry as incorrect',
       'The old entry stays in history but is no longer counted. If it created a debt repayment, that repayment is also removed from the total.',
-      form(field('Reason', 'reason', 'text', '', 'required minlength="5" maxlength="500"', true), 'Mark entry as incorrect')
+      form(
+        field('Reason', 'reason', 'text', '', 'required minlength="5" maxlength="500"', true),
+        'Mark entry as incorrect'
+      )
     );
     submit(
       async b => {
@@ -768,6 +838,17 @@ export function createSupportUI(ctx) {
           break;
         case 'support-review':
           review(person(id));
+          break;
+        case 'support-refusal':
+          refusal(person(id));
+          break;
+        case 'support-queue-more':
+          queueExpanded = true;
+          ctx.render();
+          break;
+        case 'support-queue-less':
+          queueExpanded = false;
+          ctx.render();
           break;
         case 'support-asset':
           asset(person(id));

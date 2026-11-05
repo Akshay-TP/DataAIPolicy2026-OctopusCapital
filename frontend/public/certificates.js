@@ -299,10 +299,12 @@ export function createCertificateUI(ctx) {
       if (text !== inputText || account !== owner || tab !== 'verify' || !$('#certificate-result')) return;
       report = result;
       verified = envelope;
-      const statusSnapshot = statusLists.find(snapshot =>
-        snapshot.payload?.issuerId === envelope.payload?.issuerId &&
-        snapshot.payload?.issuedAt === result.statusIssuedAt
-      ) || null;
+      const statusSnapshot =
+        statusLists.find(
+          snapshot =>
+            snapshot.payload?.issuerId === envelope.payload?.issuerId &&
+            snapshot.payload?.issuedAt === result.statusIssuedAt
+        ) || null;
       const labels = {
         format: 'Type of proof',
         issuer: 'Trusted lender signature key',

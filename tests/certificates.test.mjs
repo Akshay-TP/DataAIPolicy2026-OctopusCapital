@@ -195,53 +195,117 @@ async function launch(env) {
 test('officers attach review evidence online and through encrypted offline sync without updating the shared status cache', async () => {
   const root = mkdtempSync(join(tmpdir(), 'fl-officer-certificate-')),
     servers = [],
-    globals = Object.fromEntries(['document', 'localStorage', 'navigator', 'FormData'].map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
+    globals = Object.fromEntries(
+      ['document', 'localStorage', 'navigator', 'FormData'].map(key => [
+        key,
+        Object.getOwnPropertyDescriptor(globalThis, key),
+      ])
+    );
   let operations;
   try {
     for (const institution of prepareExchange(root)) servers.push(await launch(institution.env));
     const [a, b] = await Promise.all(servers.map(server => server.login()));
-    const review = (await a('/certificates/reviews', 'POST', {
-      id: crypto.randomUUID(), loanId: 'DEMO-CLOSED-LOAN', subjectRef: 'Borrower-001', loanRef: 'Loan-001',
-      recipientId: 'demo-partner', sourceSystem: 'BR.NET', sourceReference: 'Synthetic authoritative reconciliation',
-      assessmentDate: new Date().toISOString().slice(0, 10), validDays: 30,
-      authoritativeClosed: true, paymentsFinal: true, noPendingCorrections: true,
-    })).body;
+    const review = (
+      await a('/certificates/reviews', 'POST', {
+        id: crypto.randomUUID(),
+        loanId: 'DEMO-CLOSED-LOAN',
+        subjectRef: 'Borrower-001',
+        loanRef: 'Loan-001',
+        recipientId: 'demo-partner',
+        sourceSystem: 'BR.NET',
+        sourceReference: 'Synthetic authoritative reconciliation',
+        assessmentDate: new Date().toISOString().slice(0, 10),
+        validDays: 30,
+        authoritativeClosed: true,
+        paymentsFinal: true,
+        noPendingCorrections: true,
+      })
+    ).body;
     assert.ok(review.id);
-    assert.equal((await a(`/certificates/reviews/${review.id}/borrower`, 'POST', {
-      version: 1, decision: 'approved', explained: true, consented: true, note: 'Borrower reviewed this exact claim',
-    })).status, 200);
+    assert.equal(
+      (
+        await a(`/certificates/reviews/${review.id}/borrower`, 'POST', {
+          version: 1,
+          decision: 'approved',
+          explained: true,
+          consented: true,
+          note: 'Borrower reviewed this exact claim',
+        })
+      ).status,
+      200
+    );
     const issued = await a(`/certificates/reviews/${review.id}/issue`, 'POST', { authorised: true });
     assert.equal(issued.status, 201);
-    const envelope = issued.body.envelope, snapshot = (await a('/certificates/status')).body;
-    assert.equal((await b('/staff', 'POST', {
-      name: 'Receiving Officer', username: 'receiver.officer', role: 'officer', groupIds: ['GRP-001'], password: 'officer-certificate-passphrase',
-    })).status, 201);
-    const officer = await servers[1].login({ username: 'receiver.officer', password: 'officer-certificate-passphrase' });
+    const envelope = issued.body.envelope,
+      snapshot = (await a('/certificates/status')).body;
+    assert.equal(
+      (
+        await b('/staff', 'POST', {
+          name: 'Receiving Officer',
+          username: 'receiver.officer',
+          role: 'officer',
+          groupIds: ['GRP-001'],
+          password: 'officer-certificate-passphrase',
+        })
+      ).status,
+      201
+    );
+    const officer = await servers[1].login({
+      username: 'receiver.officer',
+      password: 'officer-certificate-passphrase',
+    });
     let workspace = (await officer('/workspace')).body;
     const cacheBefore = workspace.certificateStatusCache;
     assert.equal((await verifyCertificate(envelope, workspace.credentialSettings)).evidenceValid, false);
     assert.equal((await officer('/certificates/status/import', 'POST', { envelope: snapshot })).status, 403);
 
     // Drive the actual certificate form handlers, with lightweight DOM controls in place of a browser.
-    const nodes = Object.fromEntries(['text', 'verify', 'result', 'error', 'decision', 'upload', 'image', 'status'].map(id => ['#certificate-' + id, {}]));
-    const submit = {}, formError = {};
-    nodes['#certificate-decision'].querySelector = selector => selector === 'button' ? submit : formError;
+    const nodes = Object.fromEntries(
+      ['text', 'verify', 'result', 'error', 'decision', 'upload', 'image', 'status'].map(id => [
+        '#certificate-' + id,
+        {},
+      ])
+    );
+    const submit = {},
+      formError = {};
+    nodes['#certificate-decision'].querySelector = selector => (selector === 'button' ? submit : formError);
     nodes['#certificate-decision'].fields = {
-      applicantMemberId: 'MEM-001', identity: 'matched', identityNotes: 'Presenter independently matched by staff',
-      acceptance: 'accepted', reason: 'Meets the simulated closure-letter requirement',
+      applicantMemberId: 'MEM-001',
+      identity: 'matched',
+      identityNotes: 'Presenter independently matched by staff',
+      acceptance: 'accepted',
+      reason: 'Meets the simulated closure-letter requirement',
     };
-    const storage = new Map(), network = { onLine: true };
-    let certificateClick, pending = [], sent = [];
-    Object.defineProperty(globalThis, 'document', { configurable: true, value: {
-      addEventListener(name, handler) { if (name === 'click') certificateClick = handler; },
-      querySelector: selector => nodes[selector],
-    } });
-    Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: { getItem: key => storage.get(key) || null, setItem: (key, value) => storage.set(key, value) } });
+    const storage = new Map(),
+      network = { onLine: true };
+    let certificateClick,
+      pending = [],
+      sent = [];
+    Object.defineProperty(globalThis, 'document', {
+      configurable: true,
+      value: {
+        addEventListener(name, handler) {
+          if (name === 'click') certificateClick = handler;
+        },
+        querySelector: selector => nodes[selector],
+      },
+    });
+    Object.defineProperty(globalThis, 'localStorage', {
+      configurable: true,
+      value: { getItem: key => storage.get(key) || null, setItem: (key, value) => storage.set(key, value) },
+    });
     Object.defineProperty(globalThis, 'navigator', { configurable: true, value: network });
-    Object.defineProperty(globalThis, 'FormData', { configurable: true, value: class {
-      constructor(form) { this.fields = form.fields; }
-      [Symbol.iterator]() { return Object.entries(this.fields)[Symbol.iterator](); }
-    } });
+    Object.defineProperty(globalThis, 'FormData', {
+      configurable: true,
+      value: class {
+        constructor(form) {
+          this.fields = form.fields;
+        }
+        [Symbol.iterator]() {
+          return Object.entries(this.fields)[Symbol.iterator]();
+        }
+      },
+    });
     const rawApi = async (path, method, payload) => {
       assert.equal(network.onLine, true, 'No server request is allowed during offline capture');
       const response = await officer(path, method, payload);
@@ -250,22 +314,44 @@ test('officers attach review evidence online and through encrypted offline sync 
       return response.body;
     };
     const ctx = {
-      getState: () => workspace, rawApi, api: rawApi, setPending: value => { pending = value; },
-      acceptWorkspace: async value => { workspace = value; await operations.cache(value); },
-      refresh: async () => { workspace = await rawApi('/workspace'); }, render() {}, toast() {},
-      today: () => new Date().toISOString().slice(0, 10), esc: value => String(value),
-      heading: () => '', button: () => '', field: () => '', select: () => '', opts: () => '',
+      getState: () => workspace,
+      rawApi,
+      api: rawApi,
+      setPending: value => {
+        pending = value;
+      },
+      acceptWorkspace: async value => {
+        workspace = value;
+        await operations.cache(value);
+      },
+      refresh: async () => {
+        workspace = await rawApi('/workspace');
+      },
+      render() {},
+      toast() {},
+      today: () => new Date().toISOString().slice(0, 10),
+      esc: value => String(value),
+      heading: () => '',
+      button: () => '',
+      field: () => '',
+      select: () => '',
+      opts: () => '',
     };
     operations = createOperationsUI(ctx);
     const ui = createCertificateUI({ ...ctx, operationsUI: operations });
     ui.page();
     await certificateClick({ target: { closest: () => ({ dataset: { action: 'cert-tab', id: 'verify' } }) } });
     ui.enhance();
-    await nodes['#certificate-status'].onchange({ target: { files: [{ size: 1000, text: async () => JSON.stringify(snapshot) }] } });
+    await nodes['#certificate-status'].onchange({
+      target: { files: [{ size: 1000, text: async () => JSON.stringify(snapshot) }] },
+    });
     nodes['#certificate-text'].oninput({ target: { value: JSON.stringify(envelope) } });
     await nodes['#certificate-verify'].onclick();
     assert.match(nodes['#certificate-result'].innerHTML, /document checks pass/);
-    await nodes['#certificate-decision'].onsubmit({ preventDefault() {}, currentTarget: nodes['#certificate-decision'] });
+    await nodes['#certificate-decision'].onsubmit({
+      preventDefault() {},
+      currentTarget: nodes['#certificate-decision'],
+    });
     assert.equal(formError.textContent, undefined);
     assert.equal(sent.length, 1);
     assert.deepEqual(sent[0].statusSnapshot, snapshot);
@@ -279,7 +365,10 @@ test('officers attach review evidence online and through encrypted offline sync 
     await operations.getVault().saveWorkspace(workspace);
     network.onLine = false;
     await nodes['#certificate-verify'].onclick();
-    await nodes['#certificate-decision'].onsubmit({ preventDefault() {}, currentTarget: nodes['#certificate-decision'] });
+    await nodes['#certificate-decision'].onsubmit({
+      preventDefault() {},
+      currentTarget: nodes['#certificate-decision'],
+    });
     assert.equal(pending.length, 1);
     const queued = JSON.parse(JSON.stringify(pending[0]));
     assert.deepEqual(queued.payload.statusSnapshot, snapshot);
@@ -289,7 +378,10 @@ test('officers attach review evidence online and through encrypted offline sync 
     assert.deepEqual(reopened.records[0], queued);
     operations.adoptVault(reopened);
     // A supervisor refreshed the shared cache while this device was disconnected.
-    assert.equal((await b('/certificates/status/import', 'POST', { envelope: (await a('/certificates/status')).body })).status, 200);
+    assert.equal(
+      (await b('/certificates/status/import', 'POST', { envelope: (await a('/certificates/status')).body })).status,
+      200
+    );
     const refreshedCache = (await b('/workspace')).body.certificateStatusCache;
     network.onLine = true;
     await operations.sync();
@@ -304,7 +396,10 @@ test('officers attach review evidence online and through encrypted offline sync 
     // A pending review must still obey current policy and newer withdrawals when it reconnects.
     network.onLine = false;
     await nodes['#certificate-verify'].onclick();
-    await nodes['#certificate-decision'].onsubmit({ preventDefault() {}, currentTarget: nodes['#certificate-decision'] });
+    await nodes['#certificate-decision'].onsubmit({
+      preventDefault() {},
+      currentTarget: nodes['#certificate-decision'],
+    });
     assert.equal(reopened.records.length, 1);
     const blockedId = reopened.records[0].id;
     network.onLine = true;
@@ -319,15 +414,32 @@ test('officers attach review evidence online and through encrypted offline sync 
     await operations.sync();
     assert.equal(reopened.records.length, 1);
     assert.match(reopened.records[0]._error, /Acceptance requires/);
-    assert.equal(workspace.certificateDecisions.some(row => row.id === blockedId), false);
-    const changed = structuredClone(snapshot); changed.payload.sequence++;
-    assert.equal((await officer('/certificates/decisions', 'POST', { ...queued.payload, id: crypto.randomUUID(), statusSnapshot: changed })).status, 400);
+    assert.equal(
+      workspace.certificateDecisions.some(row => row.id === blockedId),
+      false
+    );
+    const changed = structuredClone(snapshot);
+    changed.payload.sequence++;
+    assert.equal(
+      (
+        await officer('/certificates/decisions', 'POST', {
+          ...queued.payload,
+          id: crypto.randomUUID(),
+          statusSnapshot: changed,
+        })
+      ).status,
+      400
+    );
   } finally {
     operations?.lock();
     for (const [key, descriptor] of Object.entries(globals)) {
-      if (descriptor) Object.defineProperty(globalThis, key, descriptor); else delete globalThis[key];
+      if (descriptor) Object.defineProperty(globalThis, key, descriptor);
+      else delete globalThis[key];
     }
-    for (const server of servers) { server.process.kill(); await once(server.process, 'exit'); }
+    for (const server of servers) {
+      server.process.kill();
+      await once(server.process, 'exit');
+    }
     rmSync(root, { recursive: true, force: true });
   }
 });
@@ -555,7 +667,7 @@ test('two isolated institutions issue and receive in both directions with borrow
     const adminWorkspace = (await a('/workspace')).body,
       archive = (await a('/backup', 'POST', { password: 'certificate-test-backup' })).body,
       payload = decryptBackup(archive, 'certificate-test-backup');
-    assert.equal(payload.schema, 7);
+    assert.equal(payload.schema, 8);
     const restoredDir = mkdtempSync(join(tmpdir(), 'fl-restored-cert-')),
       repository = openRepository({ dataDir: restoredDir, demo: false });
     try {

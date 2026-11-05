@@ -14,7 +14,7 @@ const dataDir = resolve(process.env.DATA_DIR);
 if (existsSync(resolve(dataDir, 'fieldledger.sqlite')))
   throw new Error('Target database already exists. Choose a new DATA_DIR; existing records are never overwritten.');
 const payload = decryptBackup(JSON.parse(readFileSync(resolve(backupFile), 'utf8')), password);
-if (![2, 3, 4, 5, 6, 7].includes(payload.schema) || !payload.workspace || !Array.isArray(payload.staff))
+if (![2, 3, 4, 5, 6, 7, 8].includes(payload.schema) || !payload.workspace || !Array.isArray(payload.staff))
   throw new Error('Invalid backup contents');
 mkdirSync(dataDir, { recursive: true });
 const repo = openRepository({ dataDir, demo: false });

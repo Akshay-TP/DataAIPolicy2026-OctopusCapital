@@ -33,9 +33,12 @@ export async function certificateRoutes({ req, res, url, b, s, user, repository,
       if (!(await verifyWithdrawalList(prior, authority.keys)).valid) continue;
       // A queued review may carry older evidence; verification will prefer the newer server snapshot.
       if (
-        allowOlder && p.sequence <= prior.payload.sequence && p.issuedAt <= prior.payload.issuedAt &&
+        allowOlder &&
+        p.sequence <= prior.payload.sequence &&
+        p.issuedAt <= prior.payload.issuedAt &&
         (p.sequence < prior.payload.sequence || p.issuedAt < prior.payload.issuedAt)
-      ) continue;
+      )
+        continue;
       assert(
         p.sequence >= prior.payload.sequence &&
           p.issuedAt >= prior.payload.issuedAt &&

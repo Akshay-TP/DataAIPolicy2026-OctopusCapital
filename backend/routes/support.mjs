@@ -3,7 +3,15 @@ import { assert, str, date, json } from '../middleware/http.mjs';
 import { groupAccess, memberAccess, requireRole } from '../services/access.mjs';
 import { localDate } from '../services/dates.mjs';
 import { CURRENCIES, validMoney } from '../../shared/catalog.mjs';
-import { REPORTERS, SUPPORT_COLLECTIONS, SUPPORT_ROUTES, payFlags, debtPosition } from '../../shared/support.mjs';
+import {
+  REFUSAL_CATEGORIES,
+  FIXABLE,
+  REPORTERS,
+  SUPPORT_COLLECTIONS,
+  SUPPORT_ROUTES,
+  payFlags,
+  debtPosition,
+} from '../../shared/support.mjs';
 
 const canonical = v =>
   JSON.stringify(v, (_, x) =>
@@ -457,6 +465,26 @@ export function supportRoutes({ req, res, url, b, s, user, repository, demo, aud
         'Record the human review outcome and reason'
       );
       payload = { ...common, date: b.date, outcome: b.outcome, reason: b.reason.trim() };
+    } else if (key === 'refusals') {
+      assert(p.kind === 'prospective', 'Choose a prospective member');
+      actualDate(b.date);
+      assert(
+        REFUSAL_CATEGORIES.includes(b.category) && FIXABLE.includes(b.fixable) && str(b.reason, 5, 1000),
+        'Record the main reason, whether it could be fixed, and a short explanation'
+      );
+      const missingItems = b.missingItems ?? [];
+      assert(
+        Array.isArray(missingItems) && missingItems.length <= 12 && missingItems.every(x => str(x, 1, 120)),
+        'Check the list of items that would address this'
+      );
+      payload = {
+        ...common,
+        date: b.date,
+        category: b.category,
+        fixable: b.fixable,
+        missingItems: missingItems.map(x => x.trim()),
+        reason: b.reason.trim(),
+      };
     } else if (key === 'assetChecks') {
       actualDate(b.date);
       assert(

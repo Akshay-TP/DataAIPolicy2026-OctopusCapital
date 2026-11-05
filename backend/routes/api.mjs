@@ -9,6 +9,7 @@ import { captureVisit } from '../services/visits.mjs';
 import { operations } from './operations.mjs';
 import { healthRoutes } from './health.mjs';
 import { addBulkCore, bulkSupportExamples } from '../services/bulk-demo.mjs';
+import { supportExamples } from '../services/support-demo.mjs';
 import { localDate } from '../services/dates.mjs';
 import { CURRENCIES, LANGUAGES, validMoney } from '../../shared/catalog.mjs';
 
@@ -69,15 +70,14 @@ export function createApiRouter({ repository, auth, demo, authority }) {
       assert(!s.config.bulkDemoLoaded, 'The larger sample dataset is already loaded', 409);
       const today = localDate(s.config.timeZone);
       const counts = addBulkCore(s, today);
-      s.supportPeople ||= [];
       // Each support record passes through the real route validation; nothing is saved unless all succeed.
       const noSave = { ...repository, save() {} };
       const stub = { writeHead() {}, end() {} };
-      for (const [route, body] of bulkSupportExamples(s, today))
+      const run = (route, body, method = 'POST', id = '') =>
         supportRoutes({
-          req: { method: 'POST' },
+          req: { method },
           res: stub,
-          url: { pathname: '/api/support/' + route },
+          url: { pathname: `/api/support/${route}${id ? '/' + id : ''}` },
           b: body,
           s,
           user,
@@ -85,6 +85,19 @@ export function createApiRouter({ repository, auth, demo, authority }) {
           demo,
           audit: () => {},
         });
+      // The named walkthrough examples (Ramesh, Imran, Kavita…) come first when not yet loaded.
+      s.supportPeople ||= [];
+      if (!s.supportPeople.length) for (const [route, body] of supportExamples(s, today)) run(route, body);
+      const { steps, backdate } = bulkSupportExamples(s, today);
+      for (const step of steps) run(step.route, step.body, step.method, step.id);
+      // Profiles were created just now; backdate them so time-based reminders behave realistically.
+      for (const [personId, when] of Object.entries(backdate)) {
+        const person = s.supportPeople.find(p => p.id === personId);
+        if (!person) continue;
+        person.createdAt = when.created + 'T09:00:00.000Z';
+        person.consentAt = person.createdAt;
+        for (const entry of person.history || []) entry.at = when.updated + 'T09:30:00.000Z';
+      }
       s.config.bulkDemoLoaded = true;
       audit(s, user, 'Loaded larger fictional demonstration dataset');
       save(s);

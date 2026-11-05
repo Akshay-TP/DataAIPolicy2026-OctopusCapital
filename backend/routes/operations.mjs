@@ -272,7 +272,7 @@ export function operations({ req, res, url, b, s, user, repository, demo, audit,
       res,
       200,
       encryptBackup(
-        { schema: 7, createdAt: new Date().toISOString(), workspace: s, staff: repository.listStaff(true) },
+        { schema: 8, createdAt: new Date().toISOString(), workspace: s, staff: repository.listStaff(true) },
         b.password
       )
     );

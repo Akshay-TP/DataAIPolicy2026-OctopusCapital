@@ -439,7 +439,7 @@ test('support API scopes standalone people, validates ledger entries, retries sa
     const full = (await admin('/workspace')).body,
       archive = (await admin('/backup', 'POST', { password: 'support-backup-password' })).body,
       payload = decryptBackup(archive, 'support-backup-password');
-    assert.equal(payload.schema, 7);
+    assert.equal(payload.schema, 8);
     const restoreDir = mkdtempSync(join(tmpdir(), 'fl-support-restored-')),
       repo = openRepository({ dataDir: restoreDir, demo: false });
     try {

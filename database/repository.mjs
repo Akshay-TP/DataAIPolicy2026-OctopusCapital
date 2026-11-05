@@ -55,6 +55,7 @@ export function openRepository({ dataDir, demo, key, keyFile }) {
     [5, '005_cashflow_scenarios.sql'],
     [6, '006_worker_support.sql'],
     [7, '007_certificates.sql'],
+    [8, '008_prospect_refusals.sql'],
   ]) {
     if (prepare('SELECT version FROM schema_migrations WHERE version=?').get(version)) continue;
     db.exec('BEGIN IMMEDIATE');
