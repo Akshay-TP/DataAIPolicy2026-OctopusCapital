@@ -42,6 +42,8 @@ Prepare B through **Offline records → Unlock records**, using a device passphr
 
 Even an in-policy cached snapshot cannot exclude a newer withdrawal. Verification does not establish live status. Where the recipient requires a fresher check or live issuer confirmation, the check remains incomplete. An offline documentary-review record is provisional until server revalidation on sync.
 
+Officers can attach a verified signed snapshot to a documentary review without updating the institution's shared status cache. The snapshot travels with the review in the encrypted offline queue and is retained with the saved evidence. On receipt or sync, the server independently checks its signature, issuer and current policy, using newer trusted server status when available. A new withdrawal or stricter freshness policy can still block acceptance; the pending review remains available with its sync error. Shared-cache imports remain restricted to supervisors and administrators.
+
 ## Encoding and security boundary
 
 The envelope is `{format, algorithm, payload, signature}`. The V1 payload has a strict set of fields, fixed claim definition and fixed statement; unknown fields or claim definitions are unsupported. Object keys are recursively sorted with JavaScript’s deterministic default ordering and encoded as UTF-8 JSON. This is a **narrow application encoding**, not a general claim of RFC 8785 compliance. The format plus a newline prefixes the signed bytes, separating certificate signatures from withdrawal-list signatures. The algorithm is fixed to Ed25519. Public keys supplied by a presenter are never automatically trusted.

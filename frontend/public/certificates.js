@@ -291,13 +291,18 @@ export function createCertificateUI(ctx) {
       const text = inputText,
         account = owner,
         envelope = JSON.parse(text),
+        statusLists = [...settings().statusLists, ...localStatus],
         result = await verifyCertificate(envelope, {
           ...settings(),
-          statusLists: [...settings().statusLists, ...localStatus],
+          statusLists,
         });
       if (text !== inputText || account !== owner || tab !== 'verify' || !$('#certificate-result')) return;
       report = result;
       verified = envelope;
+      const statusSnapshot = statusLists.find(snapshot =>
+        snapshot.payload?.issuerId === envelope.payload?.issuerId &&
+        snapshot.payload?.issuedAt === result.statusIssuedAt
+      ) || null;
       const labels = {
         format: 'Claim format',
         issuer: 'Approved issuer key',
@@ -326,6 +331,7 @@ export function createCertificateUI(ctx) {
             ...body,
             id: decisionId,
             envelope: verified,
+            statusSnapshot,
             applicantMemberId: body.applicantMemberId || null,
           };
           if (!navigator.onLine)
@@ -425,14 +431,13 @@ export function createCertificateUI(ctx) {
         } catch (error) {
           if (error.status === 403) {
             toast(
-              'Verified snapshot loaded for this check. Only a supervisor or administrator can save it on the server.'
+              'Verified snapshot attached to this review. Only a supervisor or administrator can update the shared status cache.'
             );
           } else if (error.status && error.status < 500) {
             localStatus = localStatus.filter(row => row !== envelope);
             await ctx.refresh();
             throw error;
-          }
-          toast('Verified snapshot loaded for this check. Reconnect to save it on the server.');
+          } else toast('Verified snapshot attached to this review. It will be checked again when the review syncs.');
         }
         if (inputText) await verify();
       } catch (error) {

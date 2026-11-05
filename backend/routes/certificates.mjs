@@ -25,6 +25,27 @@ export async function certificateRoutes({ req, res, url, b, s, user, repository,
   };
   const current = () => authority.settings(s),
     identity = id => typeof id === 'string' && /^[a-zA-Z0-9_-]{8,80}$/.test(id);
+  async function checkSnapshot(envelope, settings, allowOlder = false) {
+    const result = await verifyWithdrawalList(envelope, authority.keys);
+    assert(result.valid, result.reason);
+    const p = envelope.payload;
+    for (const prior of settings.statusLists.filter(row => row?.payload?.issuerId === p.issuerId)) {
+      if (!(await verifyWithdrawalList(prior, authority.keys)).valid) continue;
+      // A queued review may carry older evidence; verification will prefer the newer server snapshot.
+      if (
+        allowOlder && p.sequence <= prior.payload.sequence && p.issuedAt <= prior.payload.issuedAt &&
+        (p.sequence < prior.payload.sequence || p.issuedAt < prior.payload.issuedAt)
+      ) continue;
+      assert(
+        p.sequence >= prior.payload.sequence &&
+          p.issuedAt >= prior.payload.issuedAt &&
+          prior.payload.withdrawn.every(row => p.withdrawn.some(next => next.id === row.id && next.at === row.at)),
+        'Older or incomplete withdrawal information cannot replace the cached snapshot',
+        409
+      );
+    }
+    return envelope;
+  }
   const accessReview = id => {
     const review = s.closureReviews.find(row => row.id === id);
     assert(review, 'Closure review not found', 404);
@@ -65,25 +86,9 @@ export async function certificateRoutes({ req, res, url, b, s, user, repository,
   }
   if (path === 'status/import' && req.method === 'POST') {
     requireRole(user, 'admin', 'supervisor');
-    const result = await verifyWithdrawalList(b.envelope, authority.keys);
-    assert(result.valid, result.reason);
+    await checkSnapshot(b.envelope, current());
     const p = b.envelope.payload,
-      old = s.certificateStatusCache.find(row => row.id === p.issuerId),
-      initial = current()
-        .statusLists.filter(row => row.payload.issuerId === p.issuerId)
-        .sort(
-          (a, b) => b.payload.sequence - a.payload.sequence || b.payload.issuedAt.localeCompare(a.payload.issuedAt)
-        )[0];
-    if (initial) {
-      const prior = initial.payload;
-      assert(
-        p.sequence >= prior.sequence &&
-          p.issuedAt >= prior.issuedAt &&
-          prior.withdrawn.every(row => p.withdrawn.some(next => next.id === row.id && next.at === row.at)),
-        'Older or incomplete withdrawal information cannot replace the cached snapshot',
-        409
-      );
-    }
+      old = s.certificateStatusCache.find(row => row.id === p.issuerId);
     const record = { id: p.issuerId, envelope: b.envelope, importedAt: at(), importedBy: user.id };
     if (old) Object.assign(old, record);
     else s.certificateStatusCache.push(record);
@@ -311,8 +316,20 @@ export async function certificateRoutes({ req, res, url, b, s, user, repository,
       json(res, 200, old);
       return true;
     }
-    const settings = current(),
-      report = await verifyCertificate(b.envelope, settings);
+    const settings = current();
+    let statusSnapshot = null;
+    if (b.statusSnapshot != null) {
+      statusSnapshot = await checkSnapshot(b.statusSnapshot, settings, true);
+      assert(
+        statusSnapshot.payload.issuerId === b.envelope?.payload?.issuerId,
+        'Status snapshot must belong to the certificate issuer'
+      );
+    }
+    // Review evidence does not grant permission to update the institution's shared status cache.
+    const report = await verifyCertificate(b.envelope, {
+      ...settings,
+      statusLists: [...settings.statusLists, ...(statusSnapshot ? [statusSnapshot] : [])],
+    });
     assert(
       b.acceptance !== 'accepted' || (report.evidenceValid && b.identity === 'matched'),
       'Acceptance requires recognised, intact, in-date evidence, sufficiently fresh status, the intended recipient and a separate identity match',
@@ -321,6 +338,7 @@ export async function certificateRoutes({ req, res, url, b, s, user, repository,
     const record = {
       id: b.id,
       envelope: b.envelope,
+      statusSnapshot,
       report,
       identity: b.identity,
       identityNotes: b.identityNotes.trim(),
