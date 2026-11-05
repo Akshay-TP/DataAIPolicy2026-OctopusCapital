@@ -1,0 +1,18 @@
+# Render Blueprint: one Docker web service serving both the frontend and the API.
+# This is the PUBLIC DEMO configuration (synthetic data, passwordless demo login).
+# For real records see README "Deploying" – use DEMO_MODE=false, ADMIN_PASSWORD and a persistent disk.
+services:
+  - type: web
+    name: fieldledger-demo
+    runtime: docker
+    plan: free
+    healthCheckPath: /healthz
+    envVars:
+      - key: DEMO_MODE
+        value: "true"
+      - key: NODE_ENV
+        value: demo          # anything except "production" enables demo mode
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: DATABASE_KEY
+        generateValue: true

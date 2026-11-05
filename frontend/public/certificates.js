@@ -1,71 +1,482 @@
-import {canonicalJson,closureBlockers,verifyCertificate,verifyWithdrawalList,displayCertificateResult} from '../../shared/certificates.mjs';
+import {
+  canonicalJson,
+  closureBlockers,
+  verifyCertificate,
+  verifyWithdrawalList,
+  displayCertificateResult,
+} from '../../shared/certificates.mjs';
 
-export function createCertificateUI(ctx){
-  const {esc,field,select,opts,button,heading,openModal,formHtml,toast}=ctx;
-  const handleForm=(callback,after)=>ctx.handleForm(callback,after,{refreshAfter:'always'});
-  const state=()=>ctx.getState(),$=selector=>document.querySelector(selector),settings=()=>state().credentialSettings;
-  const authorised=()=>['admin','supervisor'].includes(state().user.role);
-  const download=(name,value)=>{const url=URL.createObjectURL(new Blob([canonicalJson(value)],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
-  const action=(label,name,id='')=>`<button class="text-btn" data-action="cert-${name}" data-id="${esc(id)}">${label}</button>`;
-  const check=(name,label)=>`<label class="check field wide"><input type="checkbox" name="${name}" required><span>${label}</span></label>`;
-  const note=(label,name)=>`<label class="field wide"><span>${label}</span><textarea name="${name}" required minlength="5" maxlength="500"></textarea></label>`;
-  const table=(headers,rows)=>`<div class="table-wrap"><table><thead><tr>${headers.map(label=>`<th>${label}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table>${rows.length?'':'<p class="empty">No records yet.</p>'}</div>`;
-  const recipientName=id=>settings().keys.find(key=>key.issuerId===id)?.name||id;
-  let tab='issue',inputText='',verified=null,report=null,localStatus=[],owner='';
-  function previewFields(payload){return `<dl class="certificate-fields">${[['Claim','Specified loan closure'],['Issuer',payload.issuerName],['Borrower reference',payload.subjectRef],['Specified loan reference',payload.loanRef],['Intended recipient',recipientName(payload.recipientId)],['Assessment date',payload.assessmentDate],['Prepared',payload.preparedAt],['Expires',payload.expiresAt],['Certificate ID',payload.id]].map(([label,value])=>`<div><dt>${label}</dt><dd data-no-translate>${esc(value)}</dd></div>`).join('')}</dl><p>${esc(payload.statement)}</p>${payload.synthetic?'<p class="review-strip">Synthetic demonstration. Not evidence from a real institution.</p>':''}`;}
-  function page(){
-    const nextOwner=state().config.workspaceId+'-'+state().user.id;if(owner!==nextOwner){owner=nextOwner;inputText='';verified=null;report=null;localStatus=[];}
-    const config=settings();
-    return heading('Documentary evidence','Loan-closure certificates','One limited claim. Signature, withdrawal status, identity matching and acceptance are checked separately.',action('Download withdrawal snapshot','status')+(state().user.role==='admin'?action('Recipient policy','policy'):''))+
-      `<div class="explain"><strong>${esc(config.issuer?.name||'Verification workspace')}</strong><br>${config.synthetic?'Fictional institutional workflow with synthetic records. Research contact does not establish adoption or acceptance.':'Use only an institution-approved issuer key and an agreed documentary requirement.'} Offline checks use cached public keys and withdrawal information; newer withdrawals may be unknown.</div><div class="certificate-tabs" role="tablist">${['issue','verify'].map(value=>`<button role="tab" aria-selected="${tab===value}" class="btn ${tab===value?'':'secondary'}" data-action="cert-tab" data-id="${value}">${value==='issue'?'Prepare & issue':'Receive & verify'}</button>`).join('')}</div>`+(tab==='issue'?issuancePage():verificationPage());
+export function createCertificateUI(ctx) {
+  const { esc, field, select, opts, button, heading, openModal, formHtml, toast } = ctx;
+  const handleForm = (callback, after) => ctx.handleForm(callback, after, { refreshAfter: 'always' });
+  const state = () => ctx.getState(),
+    $ = selector => document.querySelector(selector),
+    settings = () => state().credentialSettings;
+  const authorised = () => ['admin', 'supervisor'].includes(state().user.role);
+  const download = (name, value) => {
+    const url = URL.createObjectURL(new Blob([canonicalJson(value)], { type: 'application/json' })),
+      a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+  const action = (label, name, id = '') =>
+    `<button class="text-btn" data-action="cert-${name}" data-id="${esc(id)}">${label}</button>`;
+  const check = (name, label) =>
+    `<label class="check field wide"><input type="checkbox" name="${name}" required><span>${label}</span></label>`;
+  const note = (label, name) =>
+    `<label class="field wide"><span>${label}</span><textarea name="${name}" required minlength="5" maxlength="500"></textarea></label>`;
+  const table = (headers, rows) =>
+    `<div class="table-wrap"><table><thead><tr>${headers.map(label => `<th>${label}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table>${rows.length ? '' : '<p class="empty">No records yet.</p>'}</div>`;
+  const recipientName = id => settings().keys.find(key => key.issuerId === id)?.name || id;
+  let tab = 'issue',
+    inputText = '',
+    verified = null,
+    report = null,
+    localStatus = [],
+    owner = '';
+  function previewFields(payload) {
+    return `<dl class="certificate-fields">${[
+      ['Claim', 'Specified loan closure'],
+      ['Issuer', payload.issuerName],
+      ['Borrower reference', payload.subjectRef],
+      ['Specified loan reference', payload.loanRef],
+      ['Intended recipient', recipientName(payload.recipientId)],
+      ['Assessment date', payload.assessmentDate],
+      ['Prepared', payload.preparedAt],
+      ['Expires', payload.expiresAt],
+      ['Certificate ID', payload.id],
+    ]
+      .map(([label, value]) => `<div><dt>${label}</dt><dd data-no-translate>${esc(value)}</dd></div>`)
+      .join(
+        ''
+      )}</dl><p>${esc(payload.statement)}</p>${payload.synthetic ? '<p class="review-strip">Synthetic demonstration. Not evidence from a real institution.</p>' : ''}`;
   }
-  function issuancePage(){return `<section class="panel"><div class="panel-header"><h2>Source and borrower reviews</h2>${authorised()&&settings().issuer?button('Prepare closure claim','cert-prepare','plus'):''}</div>${!settings().issuer?'<p class="panel-body">Signing is disabled. Configure an issuer and protected signing key on this institution’s server.</p>':''}${table(['Specified loan / borrower','Source / status',''],state().closureReviews.map(row=>`<tr><td><strong data-no-translate>${esc(row.payload.loanRef)}</strong><div data-no-translate>${esc(row.payload.subjectRef)}</div></td><td>${esc(row.sourceSystem)} · ${esc(displayCertificateResult(row.status))}<div class="field-help">${row.payload.assessmentDate}</div></td><td>${action('Review preview','review',row.id)}</td></tr>`))}</section><section class="panel certificate-section"><div class="panel-header"><h2>Issued certificates</h2></div>${table(['Certificate / loan','Issued / status',''],state().certificates.map(row=>`<tr><td data-no-translate>${esc(row.envelope.payload.loanRef)}<div class="field-help">${esc(row.id)}</div></td><td>${row.issuedAt.slice(0,10)} · ${row.withdrawal?'Withdrawn':'Issued'}${row.withdrawal?`<div class="field-help" data-no-translate>${esc(row.withdrawal.reason)}</div>`:''}</td><td>${action('File & printable QR','delivery',row.id)}${authorised()&&!row.withdrawal?action('Withdraw','withdraw',row.id):''}${authorised()?action('Prepare replacement','replace',row.id):''}</td></tr>`))}</section>`;}
-  function prepare(loanId='',replacesId=null){
-    const loans=state().loans,keys=[...new Map(settings().keys.filter(key=>!key.disabled).map(key=>[key.issuerId,key])).values()];
-    if(!loans.length){toast('Record and reconcile a specified loan first.');return;}
-    const chosen=loans.find(row=>row.id===loanId)||loans.find(row=>!closureBlockers(state(),row.id).length)||loans[0],id=crypto.randomUUID();
-    openModal('Review authoritative closure records','A zero balance alone is not an authorised closure decision.',formHtml(
-      select('Specified loan','loanId',opts(loans,'id','id',chosen.id),true)+field('Borrower reference to disclose','subjectRef','text',chosen.memberId,'required maxlength="60"')+field('Loan reference to disclose','loanRef','text',chosen.id,'required maxlength="60"')+
-      select('Receiving institution','recipientId',opts(keys,'issuerId','name',keys.find(key=>key.issuerId!==settings().issuer.issuerId)?.issuerId),true)+select('Authoritative record system','sourceSystem','<option value="fieldledger">FieldLedger institution ledger</option><option value="BR.NET">BR.NET (manually reconciled)</option><option value="other-external">Other authoritative system (manually reconciled)</option>',true)+
-      field('Reconciliation reference (kept internal)','sourceReference','text','','required minlength="5" maxlength="300"',true)+field('Assessment date','assessmentDate','date',ctx.today(),`required max="${ctx.today()}"`)+field('Validity in days','validDays','number',30,'required min="1" max="365" step="1"')+
-      check('authoritativeClosed','I reviewed the authoritative source and confirm this specified loan is closed, including any obligations outside this principal-only ledger.')+check('paymentsFinal','All relevant payments are final and reconciled; no pending payments are omitted.')+check('noPendingCorrections','There are no unresolved corrections affecting closure, including unsynced field records.'),'Prepare exact borrower preview','<p class="field-help">Use agreed references, never full identity numbers. This form does not contact BR.NET. The next step requires the borrower’s review and permission.</p>'));
-    handleForm(async body=>{
-      const blockers=closureBlockers(state(),body.loanId);if(blockers.length)throw new Error(blockers.join('. '));
-      await ctx.rawApi('/certificates/reviews','POST',{...body,id,replacesId,validDays:+body.validDays,authoritativeClosed:true,paymentsFinal:true,noPendingCorrections:true});
-    },()=>review(id));
+  function page() {
+    const nextOwner = state().config.workspaceId + '-' + state().user.id;
+    if (owner !== nextOwner) {
+      owner = nextOwner;
+      inputText = '';
+      verified = null;
+      report = null;
+      localStatus = [];
+    }
+    const config = settings();
+    return (
+      heading(
+        'Documentary evidence',
+        'Loan-closure certificates',
+        'One limited claim. Signature, withdrawal status, identity matching and acceptance are checked separately.',
+        action('Download withdrawal snapshot', 'status') +
+          (state().user.role === 'admin' ? action('Recipient policy', 'policy') : '')
+      ) +
+      `<div class="explain"><strong>${esc(config.issuer?.name || 'Verification workspace')}</strong><br>${config.synthetic ? 'Fictional institutional workflow with synthetic records. Research contact does not establish adoption or acceptance.' : 'Use only an institution-approved issuer key and an agreed documentary requirement.'} Offline checks use cached public keys and withdrawal information; newer withdrawals may be unknown.</div><div class="certificate-tabs" role="tablist">${['issue', 'verify'].map(value => `<button role="tab" aria-selected="${tab === value}" class="btn ${tab === value ? '' : 'secondary'}" data-action="cert-tab" data-id="${value}">${value === 'issue' ? 'Prepare & issue' : 'Receive & verify'}</button>`).join('')}</div>` +
+      (tab === 'issue' ? issuancePage() : verificationPage())
+    );
   }
-  function review(id){
-    const row=state().closureReviews.find(record=>record.id===id);if(!row){toast('Review unavailable. Refresh the workspace.');return;}
-    const borrowerForm=['prepared','correction-requested'].includes(row.status)?formHtml(select('Borrower’s choice','decision','<option value="approved">Reviewed and approved for the named recipient</option><option value="correction-requested">Correction requested — do not issue</option>',true)+check('explained','I explained every disclosed field, the limited claim, expiry and intended recipient in a language the borrower understands.')+'<label class="check field wide"><input type="checkbox" name="consented"><span>The borrower permits this exact claim to be shared with this named recipient.</span></label>'+note('Review / correction note (internal)','note'),'Record borrower’s choice'):row.status==='borrower-reviewed'&&authorised()?formHtml(check('authorised','I am authorised by this issuing institution to approve this specific certificate.'),'Sign approved certificate'):'';
-    openModal('Borrower-reviewed closure claim','Review the exact disclosed information below.',previewFields(row.payload)+`<details class="health-history"><summary>Exact data to be signed</summary><pre class="certificate-json" data-no-translate>${esc(canonicalJson(row.payload))}</pre></details><details class="health-history"><summary>Internal source review</summary><p>Source: ${esc(row.sourceSystem)}</p><p data-no-translate>${esc(row.sourceReference)}</p><p class="record-fingerprint">Approved source version: ${esc(row.sourceVersion)}</p><p>Recorded by ${esc(row.createdBy)}. Status: ${esc(displayCertificateResult(row.status))}.</p></details>`+borrowerForm);
+  function issuancePage() {
+    return `<section class="panel"><div class="panel-header"><h2>Source and borrower reviews</h2>${authorised() && settings().issuer ? button('Prepare closure claim', 'cert-prepare', 'plus') : ''}</div>${!settings().issuer ? '<p class="panel-body">Signing is disabled. Configure an issuer and protected signing key on this institution’s server.</p>' : ''}${table(
+      ['Specified loan / borrower', 'Source / status', ''],
+      state().closureReviews.map(
+        row =>
+          `<tr><td><strong data-no-translate>${esc(row.payload.loanRef)}</strong><div data-no-translate>${esc(row.payload.subjectRef)}</div></td><td>${esc(row.sourceSystem)} · ${esc(displayCertificateResult(row.status))}<div class="field-help">${row.payload.assessmentDate}</div></td><td>${action('Review preview', 'review', row.id)}</td></tr>`
+      )
+    )}</section><section class="panel certificate-section"><div class="panel-header"><h2>Issued certificates</h2></div>${table(
+      ['Certificate / loan', 'Issued / status', ''],
+      state().certificates.map(
+        row =>
+          `<tr><td data-no-translate>${esc(row.envelope.payload.loanRef)}<div class="field-help">${esc(row.id)}</div></td><td>${row.issuedAt.slice(0, 10)} · ${row.withdrawal ? 'Withdrawn' : 'Issued'}${row.withdrawal ? `<div class="field-help" data-no-translate>${esc(row.withdrawal.reason)}</div>` : ''}</td><td>${action('File & printable QR', 'delivery', row.id)}${authorised() && !row.withdrawal ? action('Withdraw', 'withdraw', row.id) : ''}${authorised() ? action('Prepare replacement', 'replace', row.id) : ''}</td></tr>`
+      )
+    )}</section>`;
+  }
+  function prepare(loanId = '', replacesId = null) {
+    const loans = state().loans,
+      keys = [
+        ...new Map(
+          settings()
+            .keys.filter(key => !key.disabled)
+            .map(key => [key.issuerId, key])
+        ).values(),
+      ];
+    if (!loans.length) {
+      toast('Record and reconcile a specified loan first.');
+      return;
+    }
+    const chosen =
+        loans.find(row => row.id === loanId) || loans.find(row => !closureBlockers(state(), row.id).length) || loans[0],
+      id = crypto.randomUUID();
+    openModal(
+      'Review authoritative closure records',
+      'A zero balance alone is not an authorised closure decision.',
+      formHtml(
+        select('Specified loan', 'loanId', opts(loans, 'id', 'id', chosen.id), true) +
+          field('Borrower reference to disclose', 'subjectRef', 'text', chosen.memberId, 'required maxlength="60"') +
+          field('Loan reference to disclose', 'loanRef', 'text', chosen.id, 'required maxlength="60"') +
+          select(
+            'Receiving institution',
+            'recipientId',
+            opts(keys, 'issuerId', 'name', keys.find(key => key.issuerId !== settings().issuer.issuerId)?.issuerId),
+            true
+          ) +
+          select(
+            'Authoritative record system',
+            'sourceSystem',
+            '<option value="fieldledger">FieldLedger institution ledger</option><option value="BR.NET">BR.NET (manually reconciled)</option><option value="other-external">Other authoritative system (manually reconciled)</option>',
+            true
+          ) +
+          field(
+            'Reconciliation reference (kept internal)',
+            'sourceReference',
+            'text',
+            '',
+            'required minlength="5" maxlength="300"',
+            true
+          ) +
+          field('Assessment date', 'assessmentDate', 'date', ctx.today(), `required max="${ctx.today()}"`) +
+          field('Validity in days', 'validDays', 'number', 30, 'required min="1" max="365" step="1"') +
+          check(
+            'authoritativeClosed',
+            'I reviewed the authoritative source and confirm this specified loan is closed, including any obligations outside this principal-only ledger.'
+          ) +
+          check('paymentsFinal', 'All relevant payments are final and reconciled; no pending payments are omitted.') +
+          check(
+            'noPendingCorrections',
+            'There are no unresolved corrections affecting closure, including unsynced field records.'
+          ),
+        'Prepare exact borrower preview',
+        '<p class="field-help">Use agreed references, never full identity numbers. This form does not contact BR.NET. The next step requires the borrower’s review and permission.</p>'
+      )
+    );
+    handleForm(
+      async body => {
+        const blockers = closureBlockers(state(), body.loanId);
+        if (blockers.length) throw new Error(blockers.join('. '));
+        await ctx.rawApi('/certificates/reviews', 'POST', {
+          ...body,
+          id,
+          replacesId,
+          validDays: +body.validDays,
+          authoritativeClosed: true,
+          paymentsFinal: true,
+          noPendingCorrections: true,
+        });
+      },
+      () => review(id)
+    );
+  }
+  function review(id) {
+    const row = state().closureReviews.find(record => record.id === id);
+    if (!row) {
+      toast('Review unavailable. Refresh the workspace.');
+      return;
+    }
+    const borrowerForm = ['prepared', 'correction-requested'].includes(row.status)
+      ? formHtml(
+          select(
+            'Borrower’s choice',
+            'decision',
+            '<option value="approved">Reviewed and approved for the named recipient</option><option value="correction-requested">Correction requested — do not issue</option>',
+            true
+          ) +
+            check(
+              'explained',
+              'I explained every disclosed field, the limited claim, expiry and intended recipient in a language the borrower understands.'
+            ) +
+            '<label class="check field wide"><input type="checkbox" name="consented"><span>The borrower permits this exact claim to be shared with this named recipient.</span></label>' +
+            note('Review / correction note (internal)', 'note'),
+          'Record borrower’s choice'
+        )
+      : row.status === 'borrower-reviewed' && authorised()
+        ? formHtml(
+            check('authorised', 'I am authorised by this issuing institution to approve this specific certificate.'),
+            'Sign approved certificate'
+          )
+        : '';
+    openModal(
+      'Borrower-reviewed closure claim',
+      'Review the exact disclosed information below.',
+      previewFields(row.payload) +
+        `<details class="health-history"><summary>Exact data to be signed</summary><pre class="certificate-json" data-no-translate>${esc(canonicalJson(row.payload))}</pre></details><details class="health-history"><summary>Internal source review</summary><p>Source: ${esc(row.sourceSystem)}</p><p data-no-translate>${esc(row.sourceReference)}</p><p class="record-fingerprint">Approved source version: ${esc(row.sourceVersion)}</p><p>Recorded by ${esc(row.createdBy)}. Status: ${esc(displayCertificateResult(row.status))}.</p></details>` +
+        borrowerForm
+    );
     $('#dialog').classList.add('wide-dialog');
-    if(['prepared','correction-requested'].includes(row.status))handleForm(async body=>{await ctx.rawApi(`/certificates/reviews/${id}/borrower`,'POST',{...body,version:row.version,explained:true,consented:body.consented==='on'});},()=>review(id));
-    else if(row.status==='borrower-reviewed'&&authorised())handleForm(async()=>{await ctx.rawApi(`/certificates/reviews/${id}/issue`,'POST',{authorised:true});toast('Approved claim signed.');});
+    if (['prepared', 'correction-requested'].includes(row.status))
+      handleForm(
+        async body => {
+          await ctx.rawApi(`/certificates/reviews/${id}/borrower`, 'POST', {
+            ...body,
+            version: row.version,
+            explained: true,
+            consented: body.consented === 'on',
+          });
+        },
+        () => review(id)
+      );
+    else if (row.status === 'borrower-reviewed' && authorised())
+      handleForm(async () => {
+        await ctx.rawApi(`/certificates/reviews/${id}/issue`, 'POST', { authorised: true });
+        toast('Approved claim signed.');
+      });
   }
-  async function delivery(id){
-    const data=await ctx.rawApi(`/certificates/issued/${id}/delivery`),payload=data.envelope.payload;
-    openModal('Specified loan closure certificate','File and QR contain the same signed claim.',`<article class="certificate-paper"><h2>Specified loan closure</h2>${data.withdrawal?'<p class="review-strip">WITHDRAWN — do not rely on this certificate.</p>':''}${previewFields(payload)}<img class="certificate-qr" src="${data.qr}" alt="QR encoding the complete signed certificate"><p>Present this signed file or QR to the named institution. Identity matching and documentary acceptance remain separate. A recipient needs previously approved public keys and sufficiently fresh withdrawal information.</p></article><div class="form-actions"><button class="btn secondary" id="certificate-file">Download signed JSON</button><a class="btn secondary" href="${data.qr}" download="${esc(id)}.png">Download QR image</a><button class="btn" data-action="print">Print certificate</button></div>`);
-    $('#dialog').classList.add('wide-dialog','printable');$('#certificate-file').onclick=()=>download(id+'.json',data.envelope);
+  async function delivery(id) {
+    const data = await ctx.rawApi(`/certificates/issued/${id}/delivery`),
+      payload = data.envelope.payload;
+    openModal(
+      'Specified loan closure certificate',
+      'File and QR contain the same signed claim.',
+      `<article class="certificate-paper"><h2>Specified loan closure</h2>${data.withdrawal ? '<p class="review-strip">WITHDRAWN — do not rely on this certificate.</p>' : ''}${previewFields(payload)}<img class="certificate-qr" src="${data.qr}" alt="QR encoding the complete signed certificate"><p>Present this signed file or QR to the named institution. Identity matching and documentary acceptance remain separate. A recipient needs previously approved public keys and sufficiently fresh withdrawal information.</p></article><div class="form-actions"><button class="btn secondary" id="certificate-file">Download signed JSON</button><a class="btn secondary" href="${data.qr}" download="${esc(id)}.png">Download QR image</a><button class="btn" data-action="print">Print certificate</button></div>`
+    );
+    $('#dialog').classList.add('wide-dialog', 'printable');
+    $('#certificate-file').onclick = () => download(id + '.json', data.envelope);
   }
-  function withdraw(id){openModal('Withdraw certificate','The original signed claim and issuance history are retained.',formHtml(note('Reason (internal)','reason'),'Withdraw certificate'));handleForm(async body=>{await ctx.rawApi(`/certificates/issued/${id}/withdraw`,'POST',body);toast('Withdrawn. Export an updated signed withdrawal snapshot for recipients.');});}
-  function policy(){const p=settings().policy;openModal('Recipient documentary policy','This policy governs the closure-letter check, never a lending decision.',formHtml(field('Maximum cached status age (hours)','maxStatusAgeHours','number',p.maxStatusAgeHours,'required min="0" max="168" step="0.25"')+`<label class="check field wide"><input type="checkbox" name="requireLiveStatus" ${p.requireLiveStatus?'checked':''}><span>Require current issuer contact. Cached offline evidence alone cannot meet this policy.</span></label>`,'Save policy'));handleForm(async body=>{await ctx.rawApi('/certificates/policy','POST',{maxStatusAgeHours:+body.maxStatusAgeHours,requireLiveStatus:body.requireLiveStatus==='on'});});}
-  function verificationPage(){return `<details class="health-history"><summary>Approved issuer registry (${settings().keys.length} keys)</summary>${table(['Issuer / key','Public key','Approved until'],settings().keys.map(key=>`<tr><td>${esc(key.name)}<div>${esc(key.keyId)}</div></td><td class="record-fingerprint">${esc(key.publicKey)}</td><td>${esc(key.validUntil)}${key.disabled?' · Disabled':''}</td></tr>`))}<p class="field-help">This registry is configured by the receiving institution. Presented certificates cannot add keys to it.</p></details><section class="panel"><div class="panel-body"><h2>Receive a closure claim</h2><p class="field-help">Verification runs on this device. No issuer contact is made. A key included by a presenter is never trusted automatically.</p><div class="certificate-imports"><label class="field">Signed JSON file<input id="certificate-upload" type="file" accept="application/json,.json"></label><label class="field">Printed QR image<input id="certificate-image" type="file" accept="image/png,image/jpeg,image/webp"></label><label class="field">Signed withdrawal snapshot<input id="certificate-status" type="file" accept="application/json,.json"></label></div><label class="field">Signed certificate JSON<textarea id="certificate-text" rows="5" maxlength="20000" placeholder="Paste the complete signed certificate…">${esc(inputText)}</textarea></label><button class="btn" id="certificate-verify">Verify on this device</button><p class="form-error" id="certificate-error" role="alert"></p><div id="certificate-result" aria-live="polite"></div></div></section><section class="panel certificate-section"><div class="panel-header"><h2>Recorded documentary reviews</h2></div>${table(['Recorded / requirement','Identity','Documentary acceptance','Reason'],state().certificateDecisions.map(row=>`<tr><td>${row.createdAt.slice(0,10)}<div class="field-help">Closure-letter authentication${row.pending?' · Pending sync':''}</div></td><td>${esc(displayCertificateResult(row.identity))}</td><td>${esc(displayCertificateResult(row.acceptance))}</td><td data-no-translate>${esc(row.reason)}</td></tr>`))}</section>`;}
-  function clearVerification(){verified=null;report=null;$('#certificate-result').innerHTML='';$('#certificate-error').textContent='';}
-  async function verify(){
-    try{const text=inputText,account=owner,envelope=JSON.parse(text),result=await verifyCertificate(envelope,{...settings(),statusLists:[...settings().statusLists,...localStatus]});if(text!==inputText||account!==owner||tab!=='verify'||!$('#certificate-result'))return;report=result;verified=envelope;
-      const labels={format:'Claim format',issuer:'Approved issuer key',signature:'Signature integrity',dates:'Validity dates',recipient:'Intended recipient',withdrawal:'Withdrawal information'};
-      $('#certificate-result').innerHTML=`<h3 class="section-title">Independent document checks</h3>${table(['Check','Result'],Object.entries(labels).map(([key,label])=>`<tr><td>${label}</td><td>${esc(displayCertificateResult(report[key]))}</td></tr>`))}<p class="field-help">Status snapshot: ${esc(report.statusIssuedAt||'Not available')}. ${report.statusAgeHours===null?'Age unknown.':`Age ${report.statusAgeHours.toFixed(2)} hours; recipient limit ${settings().policy.maxStatusAgeHours} hours.`} Even a fresh cached snapshot cannot exclude a newer withdrawal.</p><p class="explain">${report.evidenceValid?'The document checks pass against the available snapshot. Identity and institutional acceptance still require separate review.':'Further review is required. Do not treat this result as accepted evidence.'}</p><form id="certificate-decision"><div class="form-grid">${select('Applicant record (optional)','applicantMemberId','<option value="">Not linked to a member</option>'+opts(state().members),true)}${select('Identity matching','identity','<option value="unresolved">Unresolved</option><option value="matched">Matched separately by receiving staff</option><option value="mismatched">Mismatch</option>',true)}${note('Identity-check method / unresolved issue','identityNotes')}${select('Closure-letter documentary requirement','acceptance','<option value="manual-review">Requires manual review</option><option value="accepted">Accepted for this documentary requirement only</option><option value="not-accepted">Not accepted</option>',true)}${note('Acceptance / review reason','reason')}</div><p class="form-error" role="alert"></p><div class="form-actions"><button class="btn">Record documentary review</button></div></form>`;
-      const decisionId=crypto.randomUUID();
-      $('#certificate-decision').onsubmit=async event=>{event.preventDefault();const f=event.currentTarget,submit=f.querySelector('button');submit.disabled=true;try{const body=Object.fromEntries(new FormData(f));if(body.acceptance==='accepted'&&(!report.evidenceValid||body.identity!=='matched'))throw new Error('Document checks and a separate identity match are both required.');const payload={...body,id:decisionId,envelope:verified,applicantMemberId:body.applicantMemberId||null};if(!navigator.onLine)await ctx.operationsUI.queueHealth('/certificates/decisions','POST',payload,'Documentary review');else await ctx.api('/certificates/decisions','POST',payload);if(!ctx.operationsUI.unlocked())await ctx.refresh();ctx.render();toast('Documentary review recorded. This is not a lending decision.');}catch(error){f.querySelector('.form-error').textContent=error.message;}finally{submit.disabled=false;}};
-    }catch(error){$('#certificate-error').textContent=error instanceof SyntaxError?'Enter a complete signed JSON certificate.':error.message;}
+  function withdraw(id) {
+    openModal(
+      'Withdraw certificate',
+      'The original signed claim and issuance history are retained.',
+      formHtml(note('Reason (internal)', 'reason'), 'Withdraw certificate')
+    );
+    handleForm(async body => {
+      await ctx.rawApi(`/certificates/issued/${id}/withdraw`, 'POST', body);
+      toast('Withdrawn. Export an updated signed withdrawal snapshot for recipients.');
+    });
   }
-  function enhance(){
-    if(tab!=='verify')return;
-    $('#certificate-text').oninput=event=>{inputText=event.target.value;clearVerification();};$('#certificate-verify').onclick=verify;
-    $('#certificate-upload').onchange=async event=>{try{const file=event.target.files[0];if(!file)return;if(file.size>20000)throw new Error('Certificate files must be under 20 KB.');inputText=await file.text();$('#certificate-text').value=inputText;clearVerification();await verify();}catch(error){$('#certificate-error').textContent=error.message;}};
-    $('#certificate-image').onchange=async event=>{try{const file=event.target.files[0];if(!file)return;if(file.size>5000000)throw new Error('Use a QR image smaller than 5 MB.');if(!window.jsQR)throw new Error('QR reader is unavailable. Load this app online once or use the signed JSON file.');const image=await createImageBitmap(file),scale=Math.min(1,2000/image.width,2000/image.height),canvas=document.createElement('canvas');canvas.width=Math.round(image.width*scale);canvas.height=Math.round(image.height*scale);const context=canvas.getContext('2d',{willReadFrequently:true});context.drawImage(image,0,0,canvas.width,canvas.height);image.close();const found=window.jsQR(context.getImageData(0,0,canvas.width,canvas.height).data,canvas.width,canvas.height);if(!found)throw new Error('No readable QR found. Use a sharper image showing the full QR and its white border.');inputText=found.data;$('#certificate-text').value=inputText;clearVerification();await verify();}catch(error){$('#certificate-error').textContent=error.message;}};
-    $('#certificate-status').onchange=async event=>{try{const file=event.target.files[0];if(!file)return;if(file.size>90000)throw new Error('Use a status snapshot smaller than 90 KB.');const envelope=JSON.parse(await file.text()),result=await verifyWithdrawalList(envelope,settings().keys);if(!result.valid)throw new Error(result.reason);const prior=[...settings().statusLists,...localStatus].filter(row=>row.payload.issuerId===envelope.payload.issuerId);if(prior.some(row=>row.payload.sequence>envelope.payload.sequence||row.payload.issuedAt>envelope.payload.issuedAt||row.payload.withdrawn.some(old=>!envelope.payload.withdrawn.some(next=>next.id===old.id&&next.at===old.at))))throw new Error('An older or incomplete snapshot cannot replace the information already available.');localStatus.push(envelope);try{await ctx.rawApi('/certificates/status/import','POST',{envelope});await ctx.refresh();toast('Verified status snapshot saved.');}catch(error){if(error.status&&error.status<500){localStatus=localStatus.filter(row=>row!==envelope);await ctx.refresh();throw error;}toast('Verified snapshot loaded for this check. Reconnect to save it on the server.');}if(inputText)await verify();}catch(error){$('#certificate-error').textContent=error.message;}};
+  function policy() {
+    const p = settings().policy;
+    openModal(
+      'Recipient documentary policy',
+      'This policy governs the closure-letter check, never a lending decision.',
+      formHtml(
+        field(
+          'Maximum cached status age (hours)',
+          'maxStatusAgeHours',
+          'number',
+          p.maxStatusAgeHours,
+          'required min="0" max="168" step="0.25"'
+        ) +
+          `<label class="check field wide"><input type="checkbox" name="requireLiveStatus" ${p.requireLiveStatus ? 'checked' : ''}><span>Require current issuer contact. Cached offline evidence alone cannot meet this policy.</span></label>`,
+        'Save policy'
+      )
+    );
+    handleForm(async body => {
+      await ctx.rawApi('/certificates/policy', 'POST', {
+        maxStatusAgeHours: +body.maxStatusAgeHours,
+        requireLiveStatus: body.requireLiveStatus === 'on',
+      });
+    });
   }
-  document.addEventListener('click',async event=>{const target=event.target.closest('[data-action^="cert-"]');if(!target)return;try{const id=target.dataset.id;switch(target.dataset.action){case 'cert-tab':tab=id;ctx.render();break;case 'cert-prepare':prepare();break;case 'cert-review':review(id);break;case 'cert-delivery':await delivery(id);break;case 'cert-withdraw':withdraw(id);break;case 'cert-replace':{const prior=state().certificates.find(row=>row.id===id);prepare(prior.loanId,id);break;}case 'cert-status':download('signed-withdrawals.json',await ctx.rawApi('/certificates/status'));break;case 'cert-policy':policy();break;}}catch(error){toast(error.message);}});
-  return {page,enhance};
+  function verificationPage() {
+    return `<details class="health-history"><summary>Approved issuer registry (${settings().keys.length} keys)</summary>${table(
+      ['Issuer / key', 'Public key', 'Approved until'],
+      settings().keys.map(
+        key =>
+          `<tr><td>${esc(key.name)}<div>${esc(key.keyId)}</div></td><td class="record-fingerprint">${esc(key.publicKey)}</td><td>${esc(key.validUntil)}${key.disabled ? ' · Disabled' : ''}</td></tr>`
+      )
+    )}<p class="field-help">This registry is configured by the receiving institution. Presented certificates cannot add keys to it.</p></details><section class="panel"><div class="panel-body"><h2>Receive a closure claim</h2><p class="field-help">Verification runs on this device. No issuer contact is made. A key included by a presenter is never trusted automatically.</p><div class="certificate-imports"><label class="field">Signed JSON file<input id="certificate-upload" type="file" accept="application/json,.json"></label><label class="field">Printed QR image<input id="certificate-image" type="file" accept="image/png,image/jpeg,image/webp"></label><label class="field">Signed withdrawal snapshot<input id="certificate-status" type="file" accept="application/json,.json"></label></div><label class="field">Signed certificate JSON<textarea id="certificate-text" rows="5" maxlength="20000" placeholder="Paste the complete signed certificate…">${esc(inputText)}</textarea></label><button class="btn" id="certificate-verify">Verify on this device</button><p class="form-error" id="certificate-error" role="alert"></p><div id="certificate-result" aria-live="polite"></div></div></section><section class="panel certificate-section"><div class="panel-header"><h2>Recorded documentary reviews</h2></div>${table(
+      ['Recorded / requirement', 'Identity', 'Documentary acceptance', 'Reason'],
+      state().certificateDecisions.map(
+        row =>
+          `<tr><td>${row.createdAt.slice(0, 10)}<div class="field-help">Closure-letter authentication${row.pending ? ' · Pending sync' : ''}</div></td><td>${esc(displayCertificateResult(row.identity))}</td><td>${esc(displayCertificateResult(row.acceptance))}</td><td data-no-translate>${esc(row.reason)}</td></tr>`
+      )
+    )}</section>`;
+  }
+  function clearVerification() {
+    verified = null;
+    report = null;
+    $('#certificate-result').innerHTML = '';
+    $('#certificate-error').textContent = '';
+  }
+  async function verify() {
+    try {
+      const text = inputText,
+        account = owner,
+        envelope = JSON.parse(text),
+        result = await verifyCertificate(envelope, {
+          ...settings(),
+          statusLists: [...settings().statusLists, ...localStatus],
+        });
+      if (text !== inputText || account !== owner || tab !== 'verify' || !$('#certificate-result')) return;
+      report = result;
+      verified = envelope;
+      const labels = {
+        format: 'Claim format',
+        issuer: 'Approved issuer key',
+        signature: 'Signature integrity',
+        dates: 'Validity dates',
+        recipient: 'Intended recipient',
+        withdrawal: 'Withdrawal information',
+      };
+      $('#certificate-result').innerHTML = `<h3 class="section-title">Independent document checks</h3>${table(
+        ['Check', 'Result'],
+        Object.entries(labels).map(
+          ([key, label]) => `<tr><td>${label}</td><td>${esc(displayCertificateResult(report[key]))}</td></tr>`
+        )
+      )}<p class="field-help">Status snapshot: ${esc(report.statusIssuedAt || 'Not available')}. ${report.statusAgeHours === null ? 'Age unknown.' : `Age ${report.statusAgeHours.toFixed(2)} hours; recipient limit ${settings().policy.maxStatusAgeHours} hours.`} Even a fresh cached snapshot cannot exclude a newer withdrawal.</p><p class="explain">${report.evidenceValid ? 'The document checks pass against the available snapshot. Identity and institutional acceptance still require separate review.' : 'Further review is required. Do not treat this result as accepted evidence.'}</p><form id="certificate-decision"><div class="form-grid">${select('Applicant record (optional)', 'applicantMemberId', '<option value="">Not linked to a member</option>' + opts(state().members), true)}${select('Identity matching', 'identity', '<option value="unresolved">Unresolved</option><option value="matched">Matched separately by receiving staff</option><option value="mismatched">Mismatch</option>', true)}${note('Identity-check method / unresolved issue', 'identityNotes')}${select('Closure-letter documentary requirement', 'acceptance', '<option value="manual-review">Requires manual review</option><option value="accepted">Accepted for this documentary requirement only</option><option value="not-accepted">Not accepted</option>', true)}${note('Acceptance / review reason', 'reason')}</div><p class="form-error" role="alert"></p><div class="form-actions"><button class="btn">Record documentary review</button></div></form>`;
+      const decisionId = crypto.randomUUID();
+      $('#certificate-decision').onsubmit = async event => {
+        event.preventDefault();
+        const f = event.currentTarget,
+          submit = f.querySelector('button');
+        submit.disabled = true;
+        try {
+          const body = Object.fromEntries(new FormData(f));
+          if (body.acceptance === 'accepted' && (!report.evidenceValid || body.identity !== 'matched'))
+            throw new Error('Document checks and a separate identity match are both required.');
+          const payload = {
+            ...body,
+            id: decisionId,
+            envelope: verified,
+            applicantMemberId: body.applicantMemberId || null,
+          };
+          if (!navigator.onLine)
+            await ctx.operationsUI.queueHealth('/certificates/decisions', 'POST', payload, 'Documentary review');
+          else await ctx.api('/certificates/decisions', 'POST', payload);
+          if (!ctx.operationsUI.unlocked()) await ctx.refresh();
+          ctx.render();
+          toast('Documentary review recorded. This is not a lending decision.');
+        } catch (error) {
+          f.querySelector('.form-error').textContent = error.message;
+        } finally {
+          submit.disabled = false;
+        }
+      };
+    } catch (error) {
+      $('#certificate-error').textContent =
+        error instanceof SyntaxError ? 'Enter a complete signed JSON certificate.' : error.message;
+    }
+  }
+  function enhance() {
+    if (tab !== 'verify') return;
+    $('#certificate-text').oninput = event => {
+      inputText = event.target.value;
+      clearVerification();
+    };
+    $('#certificate-verify').onclick = verify;
+    $('#certificate-upload').onchange = async event => {
+      try {
+        const file = event.target.files[0];
+        if (!file) return;
+        if (file.size > 20000) throw new Error('Certificate files must be under 20 KB.');
+        inputText = await file.text();
+        $('#certificate-text').value = inputText;
+        clearVerification();
+        await verify();
+      } catch (error) {
+        $('#certificate-error').textContent = error.message;
+      }
+    };
+    $('#certificate-image').onchange = async event => {
+      try {
+        const file = event.target.files[0];
+        if (!file) return;
+        if (file.size > 5000000) throw new Error('Use a QR image smaller than 5 MB.');
+        if (!window.jsQR)
+          throw new Error('QR reader is unavailable. Load this app online once or use the signed JSON file.');
+        const image = await createImageBitmap(file),
+          scale = Math.min(1, 2000 / image.width, 2000 / image.height),
+          canvas = document.createElement('canvas');
+        canvas.width = Math.round(image.width * scale);
+        canvas.height = Math.round(image.height * scale);
+        const context = canvas.getContext('2d', { willReadFrequently: true });
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+        image.close();
+        const found = window.jsQR(
+          context.getImageData(0, 0, canvas.width, canvas.height).data,
+          canvas.width,
+          canvas.height
+        );
+        if (!found)
+          throw new Error('No readable QR found. Use a sharper image showing the full QR and its white border.');
+        inputText = found.data;
+        $('#certificate-text').value = inputText;
+        clearVerification();
+        await verify();
+      } catch (error) {
+        $('#certificate-error').textContent = error.message;
+      }
+    };
+    $('#certificate-status').onchange = async event => {
+      try {
+        const file = event.target.files[0];
+        if (!file) return;
+        if (file.size > 90000) throw new Error('Use a status snapshot smaller than 90 KB.');
+        const envelope = JSON.parse(await file.text()),
+          result = await verifyWithdrawalList(envelope, settings().keys);
+        if (!result.valid) throw new Error(result.reason);
+        const prior = [...settings().statusLists, ...localStatus].filter(
+          row => row.payload.issuerId === envelope.payload.issuerId
+        );
+        if (
+          prior.some(
+            row =>
+              row.payload.sequence > envelope.payload.sequence ||
+              row.payload.issuedAt > envelope.payload.issuedAt ||
+              row.payload.withdrawn.some(
+                old => !envelope.payload.withdrawn.some(next => next.id === old.id && next.at === old.at)
+              )
+          )
+        )
+          throw new Error('An older or incomplete snapshot cannot replace the information already available.');
+        localStatus.push(envelope);
+        try {
+          await ctx.rawApi('/certificates/status/import', 'POST', { envelope });
+          await ctx.refresh();
+          toast('Verified status snapshot saved.');
+        } catch (error) {
+          if (error.status === 403) {
+            toast(
+              'Verified snapshot loaded for this check. Only a supervisor or administrator can save it on the server.'
+            );
+          } else if (error.status && error.status < 500) {
+            localStatus = localStatus.filter(row => row !== envelope);
+            await ctx.refresh();
+            throw error;
+          }
+          toast('Verified snapshot loaded for this check. Reconnect to save it on the server.');
+        }
+        if (inputText) await verify();
+      } catch (error) {
+        $('#certificate-error').textContent = error.message;
+      }
+    };
+  }
+  document.addEventListener('click', async event => {
+    const target = event.target.closest('[data-action^="cert-"]');
+    if (!target) return;
+    try {
+      const id = target.dataset.id;
+      switch (target.dataset.action) {
+        case 'cert-tab':
+          tab = id;
+          ctx.render();
+          break;
+        case 'cert-prepare':
+          prepare();
+          break;
+        case 'cert-review':
+          review(id);
+          break;
+        case 'cert-delivery':
+          await delivery(id);
+          break;
+        case 'cert-withdraw':
+          withdraw(id);
+          break;
+        case 'cert-replace': {
+          const prior = state().certificates.find(row => row.id === id);
+          prepare(prior.loanId, id);
+          break;
+        }
+        case 'cert-status':
+          download('signed-withdrawals.json', await ctx.rawApi('/certificates/status'));
+          break;
+        case 'cert-policy':
+          policy();
+          break;
+      }
+    } catch (error) {
+      toast(error.message);
+    }
+  });
+  return { page, enhance };
 }

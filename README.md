@@ -148,3 +148,12 @@ New support screens and validation messages use English. Additional language cov
 ## License
 
 [MIT](LICENSE). Free to use, modify and self-host.
+
+## Deploying (Render, one Docker web service)
+
+The Node server serves both the frontend and the API, so deploy it as a single service from the `Dockerfile`.
+
+- **Public demo** (synthetic data, passwordless demo login): use `render.yaml` as a Blueprint. It sets `DEMO_MODE=true`, `NODE_ENV=demo`, `COOKIE_SECURE=true` and a generated `DATABASE_KEY`. Data resets whenever the free instance restarts.
+- **Real records:** set `DEMO_MODE=false`, `NODE_ENV=production`, `ADMIN_PASSWORD` (12+ characters), `DATABASE_KEY` (32+ random characters, stored outside the disk), `COOKIE_SECURE=true`, and attach a persistent disk mounted at `/app/data`. Run a single instance only (sessions are in memory).
+
+- **Behind a reverse proxy:** set `TRUSTED_PROXY_HOPS` (for example `1`) so login throttling counts each client address separately instead of treating all users as the proxy. Leave it unset when the app is reached directly.

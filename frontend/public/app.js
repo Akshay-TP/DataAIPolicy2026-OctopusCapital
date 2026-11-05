@@ -1,64 +1,272 @@
-import {createCertificateUI} from './certificates.js';
-import {createSupportUI} from './support.js';
-import {OfflineVault,savedWorkspaces,offlineAccessValid} from './offline.js';
-import {projectOffline} from '../../shared/offline-model.mjs';
-import {CURRENCIES,entryCurrencies,formatMoney,totalsByCurrency,attendanceByDate} from '../../shared/catalog.mjs';
-import {activeLanguage,rememberLanguage,translate,languagePicker,t} from './i18n.js';
+import { createCertificateUI } from './certificates.js';
+import { createSupportUI } from './support.js';
+import { OfflineVault, savedWorkspaces, offlineAccessValid } from './offline.js';
+import { projectOffline } from '../../shared/offline-model.mjs';
+import { CURRENCIES, entryCurrencies, formatMoney, totalsByCurrency, attendanceByDate } from '../../shared/catalog.mjs';
+import { activeLanguage, rememberLanguage, translate, languagePicker, t } from './i18n.js';
 import { createHouseholdUI } from './household.js';
 import { createOperationsUI } from './features.js';
 const $ = s => document.querySelector(s);
-const esc = v => String(v ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const paths={leaf:'M4 3h16v18H4zM9 3v18M12 8h5m-5 4h5m-5 4h3',dashboard:'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z',people:'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2m20 0v-2a4 4 0 0 0-3-3.87M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8m8-7a4 4 0 0 1 0 7',group:'M12 3l9 5-9 5-9-5 9-5zM3 12l9 5 9-5M3 16l9 5 9-5',calendar:'M8 2v4m8-4v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14H3V6a2 2 0 0 1 2-2z',wallet:'M20 7V4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h17V7H4a1 1 0 0 1 0-2m17 6h-6v5h6m-3-2.5h.01',shield:'M12 22s9-4 9-11V5l-9-3-9 3v6c0 7 9 11 9 11zM8 12l3 3 5-6',settings:'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8M9 3l-1 3-3 1-2 3 2 2-1 4 3 2 3-1 3 3 3-2v-3l3-2-1-4-3-1-1-3z',arrow:'M5 12h14m-5-5 5 5-5 5',down:'M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5',plus:'M12 5v14M5 12h14',search:'M21 21l-5-5M18 10a7 7 0 1 0-14 0 7 7 0 0 0 14 0',check:'M5 12l4 4L19 6',clock:'M12 8v4l3 2M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0',alert:'M12 9v4m0 4h.01M10 3 1 20h22L14 3z',exit:'M9 3H3v18h6m5-14 5 5-5 5M8 12h13',menu:'M3 6h18M3 12h18M3 18h18',building:'M3 21h18M5 21V8h14v13M3 8l9-5 9 5M9 12v2m6-2v2m-6 3v4m6-4v4',activity:'M2 12h5l3-8 4 16 3-8h5'};
-const icon=(n)=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${(paths[n]||paths.leaf).split('|||').map(d=>`<path d="${d}"/>`).join('')}</svg>`;
-let reportCurrency='',state=null,page='workers',filter='',query='',pending=[],session=null,serverState=null,usingSaved=false;
-const routes={certificates:['Loan-closure certificates','shield'],workers:['Workers & families','people'],prospects:['Second chance','group'],livelihood:['Loan-use & livelihoods','activity'],health:['Household support','people'],overview:['Overview','dashboard'],followups:['Follow-up cases','clock'],outcomes:['Outcomes','activity'],services:['Support directory','building'],members:['Members','people'],groups:['Groups','group'],meetings:['Field visits','calendar'],loans:['Loan register','wallet'],consent:['Consent & sharing','shield'],queue:['Offline records','activity'],settings:['Organization','settings'],staff:['Staff accounts','people']};
-const today=()=>new Date().toLocaleDateString('en-CA',{timeZone:state?.config?.timeZone||'Asia/Kolkata'});
-const currency=()=>reportCurrency||(CURRENCIES.includes(state?.settings.currency)?state.settings.currency:'INR');
-const money=(v,code=currency())=>formatMoney(v,code,activeLanguage(state));
-const inCurrency=records=>records.filter(record=>(record.currency||state.settings.currency)===currency());
-const moneySummary=(totals,fallback=currency())=>Object.keys(totals).length?Object.entries(totals).sort(([a],[b])=>a.localeCompare(b)).map(([code,value])=>`<span class="money-part">${money(value,code)}</span>`).join(''):money(0,fallback);
-const currencyOptions=selected=>entryCurrencies(selected).map(code=>`<option value="${code}" ${code===selected?'selected':''}>${code}</option>`).join('');
+const esc = v =>
+  String(v ?? '').replace(
+    /[&<>"']/g,
+    c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]
+  );
+const paths = {
+  leaf: 'M4 3h16v18H4zM9 3v18M12 8h5m-5 4h5m-5 4h3',
+  dashboard: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z',
+  people:
+    'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2m20 0v-2a4 4 0 0 0-3-3.87M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8m8-7a4 4 0 0 1 0 7',
+  group: 'M12 3l9 5-9 5-9-5 9-5zM3 12l9 5 9-5M3 16l9 5 9-5',
+  calendar: 'M8 2v4m8-4v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14H3V6a2 2 0 0 1 2-2z',
+  wallet: 'M20 7V4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h17V7H4a1 1 0 0 1 0-2m17 6h-6v5h6m-3-2.5h.01',
+  shield: 'M12 22s9-4 9-11V5l-9-3-9 3v6c0 7 9 11 9 11zM8 12l3 3 5-6',
+  settings: 'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8M9 3l-1 3-3 1-2 3 2 2-1 4 3 2 3-1 3 3 3-2v-3l3-2-1-4-3-1-1-3z',
+  arrow: 'M5 12h14m-5-5 5 5-5 5',
+  down: 'M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5',
+  plus: 'M12 5v14M5 12h14',
+  search: 'M21 21l-5-5M18 10a7 7 0 1 0-14 0 7 7 0 0 0 14 0',
+  check: 'M5 12l4 4L19 6',
+  clock: 'M12 8v4l3 2M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0',
+  alert: 'M12 9v4m0 4h.01M10 3 1 20h22L14 3z',
+  exit: 'M9 3H3v18h6m5-14 5 5-5 5M8 12h13',
+  menu: 'M3 6h18M3 12h18M3 18h18',
+  building: 'M3 21h18M5 21V8h14v13M3 8l9-5 9 5M9 12v2m6-2v2m-6 3v4m6-4v4',
+  activity: 'M2 12h5l3-8 4 16 3-8h5',
+};
+const icon = n =>
+  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${(
+    paths[n] || paths.leaf
+  )
+    .split('|||')
+    .map(d => `<path d="${d}"/>`)
+    .join('')}</svg>`;
+let reportCurrency = '',
+  state = null,
+  page = 'workers',
+  filter = '',
+  query = '',
+  pending = [],
+  session = null,
+  serverState = null,
+  usingSaved = false;
+const routes = {
+  certificates: ['Loan-closure certificates', 'shield'],
+  workers: ['Workers & families', 'people'],
+  prospects: ['Second chance', 'group'],
+  livelihood: ['Loan-use & livelihoods', 'activity'],
+  health: ['Household support', 'people'],
+  overview: ['Overview', 'dashboard'],
+  followups: ['Follow-up cases', 'clock'],
+  outcomes: ['Outcomes', 'activity'],
+  services: ['Support directory', 'building'],
+  members: ['Members', 'people'],
+  groups: ['Groups', 'group'],
+  meetings: ['Field visits', 'calendar'],
+  loans: ['Loan register', 'wallet'],
+  consent: ['Consent & sharing', 'shield'],
+  queue: ['Offline records', 'activity'],
+  settings: ['Organization', 'settings'],
+  staff: ['Staff accounts', 'people'],
+};
+const today = () => new Date().toLocaleDateString('en-CA', { timeZone: state?.config?.timeZone || 'Asia/Kolkata' });
+const currency = () =>
+  reportCurrency || (CURRENCIES.includes(state?.settings.currency) ? state.settings.currency : 'INR');
+const money = (v, code = currency()) => formatMoney(v, code, activeLanguage(state));
+const inCurrency = records => records.filter(record => (record.currency || state.settings.currency) === currency());
+const moneySummary = (totals, fallback = currency()) =>
+  Object.keys(totals).length
+    ? Object.entries(totals)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([code, value]) => `<span class="money-part">${money(value, code)}</span>`)
+        .join('')
+    : money(0, fallback);
+const currencyOptions = selected =>
+  entryCurrencies(selected)
+    .map(code => `<option value="${code}" ${code === selected ? 'selected' : ''}>${code}</option>`)
+    .join('');
 
-const pct=v=>v===null?'—':`${v}%`;
-const initials=n=>n.split(' ').map(s=>s[0]).slice(0,2).join('');
-const fmtDate=d=>new Date(d+'T12:00:00').toLocaleDateString(activeLanguage(state),{day:'numeric',month:'short'});
-const groupName=id=>state.groups.find(g=>g.id===id)?.name||'Unassigned';
-const visitsFor=id=>state.visits.filter(v=>v.memberId===id);
-function ind(m){const vs=visitsFor(m.id),days=attendanceByDate(vs),att=days.filter(v=>v.attendance!=='not-recorded'),rep=vs.filter(v=>v.due>0),checks=vs.filter(v=>v.utilisation!=='not-checked').sort((a,b)=>b.date.localeCompare(a.date));return {visits:days.length,conflicts:days.filter(d=>d.conflict).length,attendance:att.length?Math.round(att.filter(v=>v.attendance==='present').length/att.length*100):null,attTotal:att.length,attPresent:att.filter(v=>v.attendance==='present').length,repayment:rep.length?Math.round(rep.filter(v=>v.paid>=v.due).length/rep.length*100):null,repTotal:rep.length,repFull:rep.filter(v=>v.paid>=v.due).length,savingsByCurrency:totalsByCurrency(vs,'savings',m.currency),savings:inCurrency(vs).reduce((n,v)=>n+v.savings,0),surplus:m.income-m.expenses,utilisation:checks[0]?.utilisation||'not-checked'};}
-function reasons(m){const i=ind(m);return [i.conflicts>0&&'Attendance observations disagree on the same date',i.visits<4&&'Fewer than four recorded visits',i.attendance!==null&&i.attendance<80&&'Attendance below 80%',i.repayment!==null&&i.repayment<90&&'Full scheduled payments below 90%',i.surplus<=0&&'No reported household surplus',i.utilisation==='follow-up'&&'Loan utilisation needs follow-up',!m.kycVerified&&'Identity verification pending'].filter(Boolean);}
-function outstanding(l){return Math.max(0,l.principal-state.visits.filter(v=>v.loanId===l.id).reduce((n,v)=>n+v.paid,0));}
-const consentActive=m=>m.consent?.granted&&Date.parse(m.consent.expires)>Date.now();
-function toast(msg){$('#toast').textContent=t(msg,activeLanguage(state));$('#toast').style.display='block';clearTimeout(toast.timer);toast.timer=setTimeout(()=>$('#toast').style.display='none',4500);}
-function clearLegacyDemoCache(){try{localStorage.removeItem('fl-demo-cache');}catch{}}
-async function rawApi(path,method='GET',body){
+const pct = v => (v === null ? '—' : `${v}%`);
+const initials = n =>
+  esc(
+    n
+      .split(' ')
+      .map(s => s[0])
+      .slice(0, 2)
+      .join('')
+  );
+const fmtDate = d =>
+  new Date(d + 'T12:00:00').toLocaleDateString(activeLanguage(state), { day: 'numeric', month: 'short' });
+const groupName = id => state.groups.find(g => g.id === id)?.name || 'Unassigned';
+const visitsFor = id => state.visits.filter(v => v.memberId === id);
+function ind(m) {
+  const vs = visitsFor(m.id),
+    days = attendanceByDate(vs),
+    att = days.filter(v => v.attendance !== 'not-recorded'),
+    rep = vs.filter(v => v.due > 0),
+    checks = vs.filter(v => v.utilisation !== 'not-checked').sort((a, b) => b.date.localeCompare(a.date));
+  return {
+    visits: days.length,
+    conflicts: days.filter(d => d.conflict).length,
+    attendance: att.length ? Math.round((att.filter(v => v.attendance === 'present').length / att.length) * 100) : null,
+    attTotal: att.length,
+    attPresent: att.filter(v => v.attendance === 'present').length,
+    repayment: rep.length ? Math.round((rep.filter(v => v.paid >= v.due).length / rep.length) * 100) : null,
+    repTotal: rep.length,
+    repFull: rep.filter(v => v.paid >= v.due).length,
+    savingsByCurrency: totalsByCurrency(vs, 'savings', m.currency),
+    savings: inCurrency(vs).reduce((n, v) => n + v.savings, 0),
+    surplus: m.income - m.expenses,
+    utilisation: checks[0]?.utilisation || 'not-checked',
+  };
+}
+function reasons(m) {
+  const i = ind(m);
+  return [
+    i.conflicts > 0 && 'Attendance observations disagree on the same date',
+    i.visits < 4 && 'Fewer than four recorded visits',
+    i.attendance !== null && i.attendance < 80 && 'Attendance below 80%',
+    i.repayment !== null && i.repayment < 90 && 'Full scheduled payments below 90%',
+    i.surplus <= 0 && 'No reported household surplus',
+    i.utilisation === 'follow-up' && 'Loan utilisation needs follow-up',
+    !m.kycVerified && 'Identity verification pending',
+  ].filter(Boolean);
+}
+function outstanding(l) {
+  return Math.max(0, l.principal - state.visits.filter(v => v.loanId === l.id).reduce((n, v) => n + v.paid, 0));
+}
+const consentActive = m => m.consent?.granted && Date.parse(m.consent.expires) > Date.now();
+function toast(msg) {
+  $('#toast').textContent = t(msg, activeLanguage(state));
+  $('#toast').style.display = 'block';
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => ($('#toast').style.display = 'none'), 4500);
+}
+function clearLegacyDemoCache() {
+  try {
+    localStorage.removeItem('fl-demo-cache');
+  } catch {}
+}
+async function rawApi(path, method = 'GET', body) {
   let response;
-  try{response=await fetch('/api'+path,{method,signal:AbortSignal.timeout(8000),headers:method==='GET'?{}:{'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});}
-  catch{throw new Error('Cannot reach FieldLedger. Check the server connection or unlock your saved workspace.');}
-  const data=await response.json();
-  if(!response.ok){const error=new Error(data.error||'The request could not be completed.');error.status=response.status;throw error;}
+  try {
+    response = await fetch('/api' + path, {
+      method,
+      signal: AbortSignal.timeout(8000),
+      headers: method === 'GET' ? {} : { 'Content-Type': 'application/json' },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+  } catch {
+    throw new Error('Cannot reach FieldLedger. Check the server connection or unlock your saved workspace.');
+  }
+  const data = await response.json();
+  if (!response.ok) {
+    const error = new Error(data.error || 'The request could not be completed.');
+    error.status = response.status;
+    throw error;
+  }
   return data;
 }
 
-const queueable=(path,method)=>path==='/certificates/decisions'&&method==='POST'||path.startsWith('/support/')&&path!=='/support/demo'&&['POST','PATCH'].includes(method)||method==='POST'&&['/visits','/health/checkins','/health/plans','/health/cashflow','/health/scenarios'].includes(path)||method==='PATCH'&&/^\/health\/plans\/[^/]+$/.test(path);
-async function api(path,method='GET',body){
-  if(state&&queueable(path,method)&&operationsUI.unlocked()){
-    if(path==='/visits')await operationsUI.queueVisit(body);else await operationsUI.queueHealth(path,method,body,({'/health/checkins':'Household check-in','/health/plans':'Support plan','/health/cashflow':'Expected cash flow','/health/scenarios':'Cash-flow scenario'})[path]||(path.startsWith('/support/')?'Support record':'Support update'));
-    if(navigator.onLine)setTimeout(()=>sync().catch(e=>toast('Saved on device. '+e.message)),500);
+const queueable = (path, method) =>
+  (path === '/certificates/decisions' && method === 'POST') ||
+  (path.startsWith('/support/') && path !== '/support/demo' && ['POST', 'PATCH'].includes(method)) ||
+  (method === 'POST' &&
+    ['/visits', '/health/checkins', '/health/plans', '/health/cashflow', '/health/scenarios'].includes(path)) ||
+  (method === 'PATCH' && /^\/health\/plans\/[^/]+$/.test(path));
+async function api(path, method = 'GET', body) {
+  if (state && queueable(path, method) && operationsUI.unlocked()) {
+    if (path === '/visits') await operationsUI.queueVisit(body);
+    else
+      await operationsUI.queueHealth(
+        path,
+        method,
+        body,
+        {
+          '/health/checkins': 'Household check-in',
+          '/health/plans': 'Support plan',
+          '/health/cashflow': 'Expected cash flow',
+          '/health/scenarios': 'Cash-flow scenario',
+        }[path] || (path.startsWith('/support/') ? 'Support record' : 'Support update')
+      );
+    if (navigator.onLine) setTimeout(() => sync().catch(e => toast('Saved on device. ' + e.message)), 500);
     return body;
   }
-  return rawApi(path,method,body);
+  return rawApi(path, method, body);
 }
-async function acceptWorkspace(fresh){serverState=fresh;await operationsUI.cache(fresh);state=projectOffline(serverState,pending);usingSaved=false;}
-async function refresh(){try{await acceptWorkspace(await rawApi('/workspace'));}catch(error){if(!serverState)throw error;usingSaved=true;if(error.status===401)toast('Sign in online to sync. Your encrypted pending records are safe.');}}
-function lockWorkspace(){if(operationsUI.isSyncing()){toast('Wait for syncing to finish before locking.');return;}operationsUI.lock();state=null;serverState=null;pending=[];offlineLogin();}
-function offlineLogin(){
-  const profiles=savedWorkspaces();if(!profiles.length){login();return;}
+async function acceptWorkspace(fresh) {
+  serverState = fresh;
+  await operationsUI.cache(fresh);
+  state = projectOffline(serverState, pending);
+  usingSaved = false;
+}
+async function refresh() {
+  try {
+    await acceptWorkspace(await rawApi('/workspace'));
+  } catch (error) {
+    if (!serverState) throw error;
+    usingSaved = true;
+    if (error.status === 401) toast('Sign in online to sync. Your encrypted pending records are safe.');
+  }
+}
+function lockWorkspace() {
+  if (operationsUI.isSyncing()) {
+    toast('Wait for syncing to finish before locking.');
+    return;
+  }
+  operationsUI.lock();
+  state = null;
+  serverState = null;
+  pending = [];
+  offlineLogin();
+}
+function offlineLogin() {
+  const profiles = savedWorkspaces();
+  if (!profiles.length) {
+    login();
+    return;
+  }
   $('#app').classList.remove('workspace-shell');
-  $('#app').innerHTML=`<div class="login offline-login"><section class="login-form"><div class="login-card"><div class="eyebrow">FieldLedger · Saved on this device</div><h1>Ready for the field.</h1><p>Unlock your encrypted workspace. You can work here even when the server is unavailable.</p><form id="offline-unlock"><label class="field">Workspace<select name="owner">${profiles.map(p=>`<option value="${esc(p.owner)}">${esc(p.label)}</option>`).join('')}</select></label><label class="field">Device passphrase<input name="password" type="password" required minlength="12" autocomplete="off"></label><button class="btn">Unlock workspace</button><p class="form-error" role="alert"></p></form><button class="text-btn" id="online-signin">Sign in online</button><p class="field-help">The passphrase stays on this device. Sign in online at least every 7 days to renew offline capture.</p></div></section></div>`;
-  $('#offline-unlock').onsubmit=async e=>{e.preventDefault();const form=e.currentTarget,b=form.querySelector('button');b.disabled=true;try{const input=new FormData(form),vault=new OfflineVault(input.get('owner'));await vault.unlock(input.get('password'));if(!vault.workspace)throw new Error('No saved workspace. Sign in online and prepare this device first.');operationsUI.adoptVault(vault);serverState=vault.workspace;pending=vault.records;state=projectOffline(serverState,pending);usingSaved=true;render();}catch(err){form.querySelector('.form-error').textContent=err.message;}finally{b.disabled=false;}};
-  $('#online-signin').onclick=async()=>{try{session=await rawApi('/session');login();}catch{toast('Server unavailable. Start the server or unlock your saved workspace.');}};
+  $('#app').innerHTML =
+    `<div class="login offline-login"><section class="login-form"><div class="login-card"><div class="eyebrow">FieldLedger · Saved on this device</div><h1>Ready for the field.</h1><p>Unlock your encrypted workspace. You can work here even when the server is unavailable.</p><form id="offline-unlock"><label class="field">Workspace<select name="owner">${profiles.map(p => `<option value="${esc(p.owner)}">${esc(p.label)}</option>`).join('')}</select></label><label class="field">Device passphrase<input name="password" type="password" required minlength="12" autocomplete="off"></label><button class="btn">Unlock workspace</button><p class="form-error" role="alert"></p></form><button class="text-btn" id="online-signin">Sign in online</button><p class="field-help">The passphrase stays on this device. Sign in online at least every 7 days to renew offline capture.</p></div></section></div>`;
+  $('#offline-unlock').onsubmit = async e => {
+    e.preventDefault();
+    const form = e.currentTarget,
+      b = form.querySelector('button');
+    b.disabled = true;
+    try {
+      const input = new FormData(form),
+        vault = new OfflineVault(input.get('owner'));
+      await vault.unlock(input.get('password'));
+      if (!vault.workspace) throw new Error('No saved workspace. Sign in online and prepare this device first.');
+      operationsUI.adoptVault(vault);
+      serverState = vault.workspace;
+      pending = vault.records;
+      state = projectOffline(serverState, pending);
+      usingSaved = true;
+      render();
+    } catch (err) {
+      form.querySelector('.form-error').textContent = err.message;
+    } finally {
+      b.disabled = false;
+    }
+  };
+  $('#online-signin').onclick = async () => {
+    try {
+      session = await rawApi('/session');
+      login();
+    } catch {
+      toast('Server unavailable. Start the server or unlock your saved workspace.');
+    }
+  };
 }
-function nav(p){page=p;query='';filter='';location.hash=p;render();}
+function nav(p) {
+  page = p;
+  query = '';
+  filter = '';
+  location.hash = p;
+  render();
+}
 function login() {
   $('#app').classList.remove('workspace-shell');
   $('#app').innerHTML = `
@@ -81,53 +289,77 @@ function login() {
       <section class="login-form">
         <div class="login-card">
           <div class="eyebrow">FieldLedger workspace</div>
-          <h2>${session?.demo!==false?'Take a look around.':'Welcome back.'}</h2>
-          <p>${session?.demo!==false?'Explore Indian worker support, pay and debt records, and community finance workflows.':'Sign in to your organization’s field records.'}</p>
+          <h2>${session?.demo !== false ? 'Take a look around.' : 'Welcome back.'}</h2>
+          <p>${session?.demo !== false ? 'Explore Indian worker support, pay and debt records, and community finance workflows.' : 'Sign in to your organization’s field records.'}</p>
           <form id="login-form">
-            ${session?.demo!==false?`
+            ${
+              session?.demo !== false
+                ? `
               <button class="btn" type="submit">Open demo workspace ${icon('arrow')}</button>
               <p class="field-help">Fictional members and transactions. No account needed.</p>
-            `:`
+            `
+                : `
               <label class="field">Username<input name="username" value="admin" autocomplete="username" required></label><label class="field">Password<input type="password" name="password" autocomplete="current-password" required></label>
               <button class="btn" type="submit">Sign in ${icon('arrow')}</button>
-            `}
+            `
+            }
             <div class="form-error" role="alert"></div>
           </form>
-          ${session?.demo!==false?`<details class="staff-signin"><summary>Sign in with a staff account</summary><form id="staff-signin"><label class="field">Username<input name="username" autocomplete="username" required></label><label class="field">Password<input name="password" type="password" autocomplete="current-password" required></label><button class="btn">Sign in</button><div class="form-error" role="alert"></div></form></details>`:''}
+          ${session?.demo !== false ? `<details class="staff-signin"><summary>Sign in with a staff account</summary><form id="staff-signin"><label class="field">Username<input name="username" autocomplete="username" required></label><label class="field">Password<input name="password" type="password" autocomplete="current-password" required></label><button class="btn">Sign in</button><div class="form-error" role="alert"></div></form></details>` : ''}
           <div class="explain"><strong>Hosted by you. Kept by you.</strong><br>Free, open-source software for your NGO’s own server.</div>
         </div>
       </section>
     </div>`;
-  $('.login-card').insertAdjacentHTML('afterbegin',languagePicker(activeLanguage(null)));translate($('#app'),activeLanguage(null));
-  $('#staff-signin')?.addEventListener('submit',async e=>{e.preventDefault();const form=e.currentTarget;try{session=await api('/login','POST',{...Object.fromEntries(new FormData(form)),demo:false});await refresh();render();}catch(error){form.querySelector('.form-error').textContent=error.message;}});
-  $('#login-form').addEventListener('submit',async e=>{
+  $('.login-card').insertAdjacentHTML('afterbegin', languagePicker(activeLanguage(null)));
+  translate($('#app'), activeLanguage(null));
+  $('#staff-signin')?.addEventListener('submit', async e => {
     e.preventDefault();
-    const b=e.currentTarget.querySelector('button');b.disabled=true;
+    const form = e.currentTarget;
     try {
-      session=await api('/login','POST',{demo:session?.demo!==false,username:new FormData(e.currentTarget).get('username')||'admin',password:new FormData(e.currentTarget).get('password')});
-      await refresh();render();
-    } catch(err) {$('.form-error').textContent=err.message;b.disabled=false;}
+      session = await api('/login', 'POST', { ...Object.fromEntries(new FormData(form)), demo: false });
+      await refresh();
+      render();
+    } catch (error) {
+      form.querySelector('.form-error').textContent = error.message;
+    }
+  });
+  $('#login-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const b = e.currentTarget.querySelector('button');
+    b.disabled = true;
+    try {
+      session = await api('/login', 'POST', {
+        demo: session?.demo !== false,
+        username: new FormData(e.currentTarget).get('username') || 'admin',
+        password: new FormData(e.currentTarget).get('password'),
+      });
+      await refresh();
+      render();
+    } catch (err) {
+      $('.form-error').textContent = err.message;
+      b.disabled = false;
+    }
   });
 }
 function render() {
-  if(!state)return;
-  if(state.user.role!=='admin'&&['settings','staff'].includes(page))page='workers';
+  if (!state) return;
+  if (state.user.role !== 'admin' && ['settings', 'staff'].includes(page)) page = 'workers';
   $('#app').classList.add('workspace-shell');
   $('#app').innerHTML = `
     <aside class="sidebar">
       <div class="brand"><span class="brandmark">${icon('leaf')}</span>FieldLedger</div>
       <div class="org"><small>Organization</small><strong>${esc(state.settings.name)}</strong></div>
       <nav class="nav" aria-label="Main navigation">
-        <div class="nav-primary">${['workers','prospects','livelihood','followups','meetings'].map(navButton).join('')}</div>
-        ${navGroup('Community',['health','overview','outcomes','members','groups','services'])}
-        ${navGroup('Lending & sharing',['loans','certificates','consent'])}
-        ${navGroup('Workspace',['queue','settings','staff'])}
+        <div class="nav-primary">${['workers', 'prospects', 'livelihood', 'followups', 'meetings'].map(navButton).join('')}</div>
+        ${navGroup('Community', ['health', 'overview', 'outcomes', 'members', 'groups', 'services'])}
+        ${navGroup('Lending & sharing', ['loans', 'certificates', 'consent'])}
+        ${navGroup('Workspace', ['queue', 'settings', 'staff'])}
       </nav>
       <div class="sidebar-bottom">
         <div class="ownership">${icon('shield')} Self-hosted workspace</div>
         <div class="user">
           <div class="avatar">${initials(state.user.name)}</div>
-          <div><strong>${esc(state.user.name)}</strong><small>${esc(state.user.role==='officer'?'Field officer':state.user.role==='supervisor'?'Supervisor':'Administrator')}</small></div>
+          <div><strong>${esc(state.user.name)}</strong><small>${esc(state.user.role === 'officer' ? 'Field officer' : state.user.role === 'supervisor' ? 'Supervisor' : 'Administrator')}</small></div>
           <button class="logout" data-action="logout" aria-label="Sign out">${icon('exit')}</button>
         </div>
       </div>
@@ -140,54 +372,89 @@ function render() {
           Workspace <span>/</span><b>${routes[page][0]}</b>
         </div>
         <div class="top-actions">
-          <span class="status"><i class="dot ${usingSaved?'off':''}"></i>${usingSaved?'Saved workspace':pending.length?pending.length+' pending':'Connected'}</span>
-          <span class="date-label">${new Date().toLocaleDateString(activeLanguage(state),{weekday:'short',day:'numeric',month:'short'})}</span>
+          <span class="status"><i class="dot ${usingSaved ? 'off' : ''}"></i>${usingSaved ? 'Saved workspace' : pending.length ? pending.length + ' pending' : 'Connected'}</span>
+          <span class="date-label">${new Date().toLocaleDateString(activeLanguage(state), { weekday: 'short', day: 'numeric', month: 'short' })}</span>
           <button class="icon-btn" data-action="sync" aria-label="Sync pending records" title="Sync pending records">${icon('activity')}</button>
         </div>
       </header>
       <div class="content">
-        ${operationsUI.unlocked()?`<div class="offline-banner"><span><strong>Device workspace unlocked</strong> · ${pending.length} pending${pending.length?' · Provisional records appear below until synced.':''}${!offlineAccessValid(serverState)?' · Capture expired: sign in online to renew.':''}</span>${usingSaved?'<button class="text-btn" data-action="reconnect">Connect / sign in</button>':''}<button class="text-btn" data-action="lock-workspace">Lock workspace</button></div>`:`<div class="offline-banner"><span>Prepare this device before leaving your connection.</span><button class="text-btn" data-nav="queue">Set up offline access</button></div>`}${state.demo?`<div class="demo-banner"><span><strong>Demo</strong> Sample records. No real member data.</span><small>${esc(state.settings.country)} · ${esc(state.settings.currency)}</small></div>`:''}
-        ${({overview:overview,members:membersPage,groups:groupsPage,meetings:meetingsPage,loans:loansPage,consent:consentPage,settings:settingsPage}[page]||operationsUI.pages[page]||householdUI.pages[page]||supportUI.pages[page]||(page==='certificates'?certificateUI.page:null))()}
-        <footer class="footer"><span><span class="footer-brand">FieldLedger</span> / Community finance records</span><span>${state.demo?'Demo workspace':'Private workspace'} · Open source</span></footer>
+        ${operationsUI.unlocked() ? `<div class="offline-banner"><span><strong>Device workspace unlocked</strong> · ${pending.length} pending${pending.length ? ' · Provisional records appear below until synced.' : ''}${!offlineAccessValid(serverState) ? ' · Capture expired: sign in online to renew.' : ''}</span>${usingSaved ? '<button class="text-btn" data-action="reconnect">Connect / sign in</button>' : ''}<button class="text-btn" data-action="lock-workspace">Lock workspace</button></div>` : `<div class="offline-banner"><span>Prepare this device before leaving your connection.</span><button class="text-btn" data-nav="queue">Set up offline access</button></div>`}${state.demo ? `<div class="demo-banner"><span><strong>Demo</strong> Sample records. No real member data.</span><small>${esc(state.settings.country)} · ${esc(state.settings.currency)}</small></div>` : ''}
+        ${({ overview: overview, members: membersPage, groups: groupsPage, meetings: meetingsPage, loans: loansPage, consent: consentPage, settings: settingsPage }[page] || operationsUI.pages[page] || householdUI.pages[page] || supportUI.pages[page] || (page === 'certificates' ? certificateUI.page : null))()}
+        <footer class="footer"><span><span class="footer-brand">FieldLedger</span> / Community finance records</span><span>${state.demo ? 'Demo workspace' : 'Private workspace'} · Open source</span></footer>
       </div>
     </main>`;
   bindSearch();
   operationsUI.enhance(page);
   supportUI.enhance(page);
-  if(page==='certificates')certificateUI.enhance();
+  if (page === 'certificates') certificateUI.enhance();
   householdUI.enhance(page);
 }
-function navButton(key){const [label,ic]=routes[key];return `<button data-nav="${key}" class="${page===key?'active':''}" ${page===key?'aria-current="page"':''}>${icon(ic)}<span>${label}</span>${key==='queue'&&pending.length?`<span class="count">${pending.length}</span>`:''}</button>`;}
-function navGroup(label,keys){const visible=keys.filter(key=>state.user.role==='admin'||!['settings','staff'].includes(key));return visible.length?`<details class="nav-group" ${visible.includes(page)?'open':''}><summary>${label}<span aria-hidden="true">⌄</span></summary><div>${visible.map(navButton).join('')}</div></details>`:'';}
-function heading(eyebrow,title,sub,buttons=''){return `<div class="page-heading"><div><div class="eyebrow">${eyebrow}</div><h1>${title}</h1><p class="subtitle">${sub}</p></div><div class="actions">${buttons}</div></div>`;}
-function button(label,action,ic='plus',secondary=false,extra=''){return `<button class="btn ${secondary?'secondary':''}" data-action="${action}" ${extra}>${icon(ic)}${label}</button>`;}
-function stat(label,value,detail,index) {
+function navButton(key) {
+  const [label, ic] = routes[key];
+  return `<button data-nav="${key}" class="${page === key ? 'active' : ''}" ${page === key ? 'aria-current="page"' : ''}>${icon(ic)}<span>${label}</span>${key === 'queue' && pending.length ? `<span class="count">${pending.length}</span>` : ''}</button>`;
+}
+function navGroup(label, keys) {
+  const visible = keys.filter(key => state.user.role === 'admin' || !['settings', 'staff'].includes(key));
+  return visible.length
+    ? `<details class="nav-group" ${visible.includes(page) ? 'open' : ''}><summary>${label}<span aria-hidden="true">⌄</span></summary><div>${visible.map(navButton).join('')}</div></details>`
+    : '';
+}
+function heading(eyebrow, title, sub, buttons = '') {
+  return `<div class="page-heading"><div><div class="eyebrow">${eyebrow}</div><h1>${title}</h1><p class="subtitle">${sub}</p></div><div class="actions">${buttons}</div></div>`;
+}
+function button(label, action, ic = 'plus', secondary = false, extra = '') {
+  return `<button class="btn ${secondary ? 'secondary' : ''}" data-action="${action}" ${extra}>${icon(ic)}${label}</button>`;
+}
+function stat(label, value, detail, index) {
   return `<div class="stat"><div class="stat-head"><span class="stat-index">${index}</span>${label}</div><div class="value">${value}</div><div class="detail">${detail}</div></div>`;
 }
 function overview() {
-  const reviews=state.members.filter(m=>reasons(m).length);
-  const dues=state.visits.filter(v=>v.due>0);
-  const rate=dues.length?Math.round(dues.filter(v=>v.paid>=v.due).length/dues.length*100):null;
-  const dates=[...new Set(inCurrency(state.visits).map(v=>v.date))].sort().slice(-8);
-  const collections=inCurrency(state.visits).filter(v=>dates.includes(v.date)).reduce((n,v)=>n+v.paid+v.savings,0);
-  const upcoming=state.groups.filter(g=>g.nextMeeting>=today()).sort((a,b)=>a.nextMeeting.localeCompare(b.nextMeeting));
-  const identity=reviews.filter(m=>!m.kycVerified).length;
-  const utilisation=reviews.filter(m=>ind(m).utilisation==='follow-up').length;
-  const other=reviews.filter(m=>reasons(m).some(r=>!['Identity verification pending','Loan utilisation needs follow-up'].includes(r))).length;
-  const followupDetails=[identity&&`${identity} pending identity check${identity===1?'':'s'}`,utilisation&&`${utilisation} utilisation follow-up${utilisation===1?'':'s'}`,other&&`${other} member${other===1?'':'s'} with attendance, payment or household flags`].filter(Boolean).join(' · ');
-  return heading('Field operations','Overview','Member records, collections, and what needs your team’s attention.',select('Reporting currency','reportCurrency',currencyOptions(currency()))+button('Record a visit','visit'))+`
-    <div class="quick-actions" aria-label="Quick actions"><span>Quick actions</span>${button('Add member','member','people',true)}${button('Group meetings','open-meetings','calendar',true)}${button('Follow-up cases','open-followups','clock',true)}<small>Financial totals in ${currency()}</small></div>
+  const reviews = state.members.filter(m => reasons(m).length);
+  const dues = state.visits.filter(v => v.due > 0);
+  const rate = dues.length ? Math.round((dues.filter(v => v.paid >= v.due).length / dues.length) * 100) : null;
+  const dates = [...new Set(inCurrency(state.visits).map(v => v.date))].sort().slice(-8);
+  const collections = inCurrency(state.visits)
+    .filter(v => dates.includes(v.date))
+    .reduce((n, v) => n + v.paid + v.savings, 0);
+  const upcoming = state.groups
+    .filter(g => g.nextMeeting >= today())
+    .sort((a, b) => a.nextMeeting.localeCompare(b.nextMeeting));
+  const identity = reviews.filter(m => !m.kycVerified).length;
+  const utilisation = reviews.filter(m => ind(m).utilisation === 'follow-up').length;
+  const other = reviews.filter(m =>
+    reasons(m).some(r => !['Identity verification pending', 'Loan utilisation needs follow-up'].includes(r))
+  ).length;
+  const followupDetails = [
+    identity && `${identity} pending identity check${identity === 1 ? '' : 's'}`,
+    utilisation && `${utilisation} utilisation follow-up${utilisation === 1 ? '' : 's'}`,
+    other && `${other} member${other === 1 ? '' : 's'} with attendance, payment or household flags`,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  return (
+    heading(
+      'Field operations',
+      'Overview',
+      'Member records, collections, and what needs your team’s attention.',
+      select('Reporting currency', 'reportCurrency', currencyOptions(currency())) + button('Record a visit', 'visit')
+    ) +
+    `
+    <div class="quick-actions" aria-label="Quick actions"><span>Quick actions</span>${button('Add member', 'member', 'people', true)}${button('Group meetings', 'open-meetings', 'calendar', true)}${button('Follow-up cases', 'open-followups', 'clock', true)}<small>Financial totals in ${currency()}</small></div>
     <div class="stats">
-      ${stat('Members',state.members.length,`In ${state.groups.length} community groups`,'01')}
-      ${stat('Outstanding principal',money(inCurrency(state.loans).reduce((n,l)=>n+outstanding(l),0)),`${inCurrency(state.loans).filter(l=>outstanding(l)>0).length} loans with a balance`,'02')}
-      ${stat('Full scheduled payments',pct(rate),`Across ${dues.length} recorded dues`,'03')}
-      ${stat('Savings contributions',money(inCurrency(state.visits).reduce((n,v)=>n+v.savings,0)),'Total recorded to date','04')}
+      ${stat('Members', state.members.length, `In ${state.groups.length} community groups`, '01')}
+      ${stat('Outstanding principal', money(inCurrency(state.loans).reduce((n, l) => n + outstanding(l), 0)), `${inCurrency(state.loans).filter(l => outstanding(l) > 0).length} loans with a balance`, '02')}
+      ${stat('Full scheduled payments', pct(rate), `Across ${dues.length} recorded dues`, '03')}
+      ${stat('Savings contributions', money(inCurrency(state.visits).reduce((n, v) => n + v.savings, 0)), 'Total recorded to date', '04')}
     </div>
-    ${reviews.length?`
+    ${
+      reviews.length
+        ? `
       <section class="worklist" aria-label="Member follow-ups">
         <div><div class="worklist-title">${icon('alert')}<strong>${reviews.length} members need a follow-up</strong></div><p>${followupDetails}. Review the observations before taking action.</p></div>
         <button class="text-btn" data-action="review">Open follow-up list ${icon('arrow')}</button>
-      </section>`:''}
+      </section>`
+        : ''
+    }
     <div class="grid-main">
       <section class="panel">
         <div class="panel-header"><div><h2>Collections by visit date</h2><p class="panel-description">The last ${dates.length} recorded dates</p></div><span class="pill">${currency()}</span></div>
@@ -198,71 +465,723 @@ function overview() {
       </section>
       <section class="panel">
         <div class="panel-header"><div><h2>Upcoming meetings</h2><p class="panel-description">Scheduled group visits</p></div>${icon('calendar')}</div>
-        <div class="meeting-list">${upcoming.slice(0,3).map(g=>meetingRow(g)).join('')||'<div class="empty">No upcoming meetings.<br>Check the group schedule for past dates.</div>'}</div>
-        <div class="panel-footer"><span>${upcoming.length} upcoming ${upcoming.length===1?'meeting':'meetings'}</span><button class="text-btn" data-nav="meetings">View schedule ${icon('arrow')}</button></div>
+        <div class="meeting-list">${
+          upcoming
+            .slice(0, 3)
+            .map(g => meetingRow(g))
+            .join('') || '<div class="empty">No upcoming meetings.<br>Check the group schedule for past dates.</div>'
+        }</div>
+        <div class="panel-footer"><span>${upcoming.length} upcoming ${upcoming.length === 1 ? 'meeting' : 'meetings'}</span><button class="text-btn" data-nav="meetings">View schedule ${icon('arrow')}</button></div>
       </section>
     </div>
     <section class="panel">
       <div class="panel-header"><div><h2>Member register</h2><p class="panel-description">Attendance and payment observations</p></div><button class="text-btn" data-nav="members">All ${state.members.length} members ${icon('arrow')}</button></div>
       ${memberToolbar()}<div id="member-table">${memberTable(6)}</div>
       <div class="panel-footer"><span id="member-results" aria-live="polite">Showing up to 6 of ${state.members.length} members</span><span>Descriptive indicators · No automated credit decisions</span></div>
-    </section>`;
+    </section>`
+  );
 }
 function chart() {
-  const dates=[...new Set(inCurrency(state.visits).map(v=>v.date))].sort().slice(-8);
-  if(!dates.length)return '<div class="empty">Record a visit to start the collection history.</div>';
-  const series=dates.map(d=>({date:d,paid:inCurrency(state.visits).filter(v=>v.date===d).reduce((n,v)=>n+v.paid,0),savings:inCurrency(state.visits).filter(v=>v.date===d).reduce((n,v)=>n+v.savings,0)}));
-  const max=Math.max(100,...series.flatMap(v=>[v.paid,v.savings]));
-  const magnitude=10**Math.floor(Math.log10(max));
-  const ceiling=Math.ceil(max/magnitude)*magnitude, scale=145/ceiling;
-  const axis=value=>new Intl.NumberFormat(activeLanguage(state),{notation:'compact',maximumFractionDigits:1}).format(value);
+  const dates = [...new Set(inCurrency(state.visits).map(v => v.date))].sort().slice(-8);
+  if (!dates.length) return '<div class="empty">Record a visit to start the collection history.</div>';
+  const series = dates.map(d => ({
+    date: d,
+    paid: inCurrency(state.visits)
+      .filter(v => v.date === d)
+      .reduce((n, v) => n + v.paid, 0),
+    savings: inCurrency(state.visits)
+      .filter(v => v.date === d)
+      .reduce((n, v) => n + v.savings, 0),
+  }));
+  const max = Math.max(100, ...series.flatMap(v => [v.paid, v.savings]));
+  const magnitude = 10 ** Math.floor(Math.log10(max));
+  const ceiling = Math.ceil(max / magnitude) * magnitude,
+    scale = 145 / ceiling;
+  const axis = value =>
+    new Intl.NumberFormat(activeLanguage(state), { notation: 'compact', maximumFractionDigits: 1 }).format(value);
   return `<svg class="chart" viewBox="0 0 600 205" role="img" aria-label="Repayments and savings totals for the last eight recorded dates">
-    ${[0,1,2,3].map(i=>`<line x1="48" y1="${18+i*48}" x2="590" y2="${18+i*48}" stroke="#e7e3da" stroke-dasharray="2 4"/><text x="38" y="${22+i*48}" text-anchor="end">${axis(ceiling*(1-i/3))}</text>`).join('')}
-    ${series.map((v,i)=>{const step=530/series.length,x=57+i*step,w=Math.min(24,step*.3);return `<g><title>${fmtDate(v.date)}: repayments ${money(v.paid,v.currency)}, savings ${money(v.savings,v.currency)}</title><rect x="${x}" y="${163-v.paid*scale}" width="${w}" height="${v.paid*scale}" fill="#ad563d" rx="2"/><rect x="${x+w+4}" y="${163-v.savings*scale}" width="${w}" height="${v.savings*scale}" fill="#91a7ae" rx="2"/><text class="${i%2===1&&i!==series.length-1?'alternate-label':''}" x="${x+w+2}" y="188" text-anchor="middle">${fmtDate(v.date)}</text></g>`;}).join('')}
+    ${[0, 1, 2, 3].map(i => `<line x1="48" y1="${18 + i * 48}" x2="590" y2="${18 + i * 48}" stroke="#e7e3da" stroke-dasharray="2 4"/><text x="38" y="${22 + i * 48}" text-anchor="end">${axis(ceiling * (1 - i / 3))}</text>`).join('')}
+    ${series
+      .map((v, i) => {
+        const step = 530 / series.length,
+          x = 57 + i * step,
+          w = Math.min(24, step * 0.3);
+        return `<g><title>${fmtDate(v.date)}: repayments ${money(v.paid, v.currency)}, savings ${money(v.savings, v.currency)}</title><rect x="${x}" y="${163 - v.paid * scale}" width="${w}" height="${v.paid * scale}" fill="#ad563d" rx="2"/><rect x="${x + w + 4}" y="${163 - v.savings * scale}" width="${w}" height="${v.savings * scale}" fill="#91a7ae" rx="2"/><text class="${i % 2 === 1 && i !== series.length - 1 ? 'alternate-label' : ''}" x="${x + w + 2}" y="188" text-anchor="middle">${fmtDate(v.date)}</text></g>`;
+      })
+      .join('')}
   </svg>`;
 }
-function meetingRow(g,full=false){const count=state.members.filter(m=>m.groupId===g.id).length;return `<div class="${full?'schedule-card':'meeting-row'}"><div class="date-tile"><small>${new Date(g.nextMeeting+'T12:00:00').toLocaleDateString(activeLanguage(state),{month:'short'})}</small><b>${Number(g.nextMeeting.slice(-2))}</b></div><div class="meeting-info"><strong>${esc(g.name)}</strong><div class="meta"><span>${g.time} · ${count} members</span>${full?esc(g.officer):''}</div></div>${full?button('Record visit','visit','plus',false,`data-group="${g.id}"`):`<button class="arrow" data-action="visit" data-group="${g.id}" aria-label="Record visit for ${esc(g.name)}">${icon('arrow')}</button>`}</div>`;}
-function memberToolbar(){return `<div class="table-toolbar"><label class="search">${icon('search')}<input id="member-search" aria-label="Search members" placeholder="Search by name or member ID…" value="${esc(query)}"><button type="button" class="search-clear" aria-label="Clear search" ${query?'':'hidden'}>×</button></label><select class="filter" id="member-filter" aria-label="Filter members"><option value="">All members</option><option value="review" ${filter==='review'?'selected':''}>Needs review</option>${state.groups.map(g=>`<option value="${g.id}" ${filter===g.id?'selected':''}>${esc(g.name)}</option>`).join('')}</select></div>`;}
-function memberTable(limit){const ms=state.members.filter(m=>(!query||`${m.name} ${m.id}`.toLowerCase().includes(query.toLowerCase()))&&(!filter||(filter==='review'?reasons(m).length:m.groupId===filter)));return `<div class="table-wrap"><table><thead><tr><th>Member</th><th>Group</th><th>Attendance</th><th>Full payments</th><th>Follow-up</th><th></th></tr></thead><tbody>${ms.slice(0,limit||10000).map(m=>{const i=ind(m),review=reasons(m).length;return `<tr><td><div class="member-cell"><div class="avatar">${initials(m.name)}</div><div><strong>${esc(m.name)}</strong><small>${m.id}</small></div></div></td><td>${esc(groupName(m.groupId))}</td><td><span class="progress"><i style="width:${i.attendance||0}%"></i></span>${pct(i.attendance)}</td><td>${pct(i.repayment)} <span class="number-note">${i.repTotal?'full payments':'No dues recorded'}</span></td><td><span class="badge ${review?'amber':''}"><i class="dot ${review?'off':''}"></i>${review?'Needs review':'Up to date'}</span></td><td><button class="arrow" data-action="profile" data-id="${m.id}" aria-label="View ${esc(m.name)}">${icon('arrow')}</button></td></tr>`;}).join('')}</tbody></table>${!ms.length?'<div class="empty">No members match. Try another search or add your first member.</div>':''}</div>`;}
-function bindSearch(){
-  const input=$('#member-search'),clear=$('.search-clear');
-  const update=()=>{const target=$('#member-table');target.innerHTML=memberTable(page==='overview'?6:undefined);translate(target,activeLanguage(state));if(clear)clear.hidden=!query;const count=$('#member-results');if(count)count.textContent=`${target.querySelectorAll('tbody tr').length} / ${state.members.length} ${t('Members',activeLanguage(state))}`;};
-  input?.addEventListener('input',()=>{query=input.value;update();});
-  clear?.addEventListener('click',()=>{query='';input.value='';update();input.focus();});
-  $('#member-filter')?.addEventListener('change',e=>{filter=e.target.value;update();});
+function meetingRow(g, full = false) {
+  const count = state.members.filter(m => m.groupId === g.id).length;
+  return `<div class="${full ? 'schedule-card' : 'meeting-row'}"><div class="date-tile"><small>${new Date(g.nextMeeting + 'T12:00:00').toLocaleDateString(activeLanguage(state), { month: 'short' })}</small><b>${Number(g.nextMeeting.slice(-2))}</b></div><div class="meeting-info"><strong>${esc(g.name)}</strong><div class="meta"><span>${g.time} · ${count} members</span>${full ? esc(g.officer) : ''}</div></div>${full ? button('Record visit', 'visit', 'plus', false, `data-group="${g.id}"`) : `<button class="arrow" data-action="visit" data-group="${g.id}" aria-label="Record visit for ${esc(g.name)}">${icon('arrow')}</button>`}</div>`;
 }
-function membersPage(){return heading('Member records','Members','Search the register, review observations, or enroll a new member.',button('Add member','member'))+`<section class="panel">${memberToolbar()}<div id="member-table">${memberTable()}</div></section>`;}
-function groupsPage(){return heading('Group records','Community groups','Meeting schedules, assigned officers, and member contributions.',button('Create group','group'))+`<div class="group-grid">${state.groups.map(g=>{const ms=state.members.filter(m=>m.groupId===g.id);return `<section class="panel group-card"><div class="group-icon">${icon('group')}</div><div class="eyebrow">${g.id}</div><h2 data-no-translate>${esc(g.name)}</h2><div class="group-numbers"><div><b>${ms.length}</b><small>Members</small></div><div><b>${moneySummary(totalsByCurrency(state.visits.filter(v=>ms.some(m=>m.id===v.memberId)),'savings',state.settings.currency))}</b><small>Recorded savings</small></div></div><p>Field officer · ${esc(g.officer)}</p><p>Next meeting · ${fmtDate(g.nextMeeting)} at ${g.time}</p><div class="actions">${button('Record visit','visit','plus',false,`data-group="${g.id}"`)}<button class="text-btn" data-action="group-members" data-id="${g.id}">Members ${icon('arrow')}</button></div></section>`;}).join('')||'<div class="empty">Start by creating your first community group.</div>'}</div>`;}
-function meetingsPage(){return heading('Field operations','Field visits','Record attendance, collections, and loan utilisation checks.',button('Record a visit','visit'))+`${pending.length?`<div class="review-strip">${icon('clock')}<span><strong>${pending.length} records waiting to sync.</strong> Saved on this device. Keep this browser’s data until they are synced.</span><button class="text-btn" data-action="sync">Sync now ${icon('arrow')}</button></div>`:''}<div class="split"><section class="panel"><div class="panel-header"><h2>Group meetings</h2></div><div style="padding-top:15px">${state.groups.map(g=>meetingRow(g,true)).join('')||'<div class="empty">No groups yet.</div>'}</div></section><section class="panel"><div class="panel-header"><h2>Recent observations</h2><span class="pill">${state.visits.length} records</span></div><div class="panel-body">${state.visits.slice().sort((a,b)=>b.date.localeCompare(a.date)||b.createdAt.localeCompare(a.createdAt)).slice(0,8).map(v=>`<div class="visit-item"><div><strong>${esc(state.members.find(m=>m.id===v.memberId)?.name||v.memberId)}</strong><small>${fmtDate(v.date)} · ${esc(v.attendance)} · ${esc(v.officer)}</small>${v.note?`<small class="visit-note">${esc(v.note)}</small>`:''}</div><div>${money(v.paid,v.currency)} repaid<small>${money(v.savings,v.currency)} saved</small></div></div>`).join('')||'<div class="empty">No field visits recorded yet.</div>'}</div></section></div><div class="explain" style="margin-top:24px"><strong>Offline capture</strong><br>The app shell works offline after the first visit. Demo records are cached on this device. Offline observations are queued locally and sent to the server when you reconnect; a valid login is required to sync. Real workspaces require an open session to prepare offline capture. This prototype does not encrypt device storage.</div>`;}
-function loansPage(){return heading('Lending records','Loan register','Record loans approved by your organization and track principal repayments.',button('Record a loan','loan'))+`<div class="explain" style="margin-bottom:23px">This MVP tracks principal-only, interest-free loans. It does not disburse money, calculate interest, or approve credit. Schedules calculate amounts due from installment dates. Visit-based payment percentages remain separate descriptive indicators.</div><section class="panel"><div class="table-wrap"><table><thead><tr><th>Member / loan</th><th>Purpose</th><th>Principal</th><th>Remaining</th><th>Installment</th><th>Status</th></tr></thead><tbody>${state.loans.map(l=>`<tr><td><button class="text-btn" data-action="profile" data-id="${l.memberId}">${esc(state.members.find(m=>m.id===l.memberId)?.name)}</button><div class="field-help">${l.id}</div></td><td>${esc(l.purpose)}</td><td>${money(l.principal,l.currency)}</td><td>${money(outstanding(l),l.currency)}</td><td>${money(l.installment,l.currency)} / ${esc(l.frequency)}</td><td><span class="badge ${outstanding(l)?'':'gray'}">${outstanding(l)?'Active':'Repaid'}</span></td></tr>`).join('')}</tbody></table>${!state.loans.length?'<div class="empty">No loans recorded yet.</div>':''}</div></section>`;}
-function consentPage(){return heading('Member permissions','Consent & sharing','A member’s record is shared only with their explicit, recorded permission.')+`<div class="explain" style="margin-bottom:24px">Exports contain named descriptive indicators, the recipient, and the purpose. Sharing permission expires after 30 days. Revocation stops future exports; it cannot recall a copy already downloaded. Exports are not signed credentials.</div><section class="panel"><div class="table-wrap"><table><thead><tr><th>Member</th><th>Permission</th><th>Recipient</th><th>Expires</th><th>Actions</th></tr></thead><tbody>${state.members.map(m=>`<tr><td><strong>${esc(m.name)}</strong><div class="field-help">${m.id}</div></td><td><span class="badge ${consentActive(m)?'':'gray'}">${consentActive(m)?'Permission recorded':m.consent?.granted?'Expired':'Not shared'}</span></td><td>${consentActive(m)?esc(m.consent.recipient):'—'}</td><td>${consentActive(m)?fmtDate(m.consent.expires.slice(0,10)):'—'}</td><td><div class="actions">${consentActive(m)?`<button class="text-btn" data-action="export" data-id="${m.id}">Export ${icon('down')}</button><button class="text-btn" data-action="revoke" data-id="${m.id}">Revoke</button>`:`<button class="text-btn" data-action="consent" data-id="${m.id}">Record permission ${icon('arrow')}</button>`}</div></td></tr>`).join('')}</tbody></table></div></section>`;}
-function settingsPage(){return heading('Workspace settings','Organization','Manage your organization’s details and review workspace activity.')+`<div class="settings-grid"><section class="panel"><div class="panel-header"><h2>Workspace preferences</h2></div><form id="settings-form" class="panel-body"><div class="form-grid">${field('Organization name','name','text',state.settings.name,'required',true)}${field('Country','country','text',state.settings.country,'required')}<label class="field">Default currency<select name="currency">${CURRENCIES.map(c=>`<option ${state.settings.currency===c?'selected':''}>${c}</option>`).join('')}</select></label></div><p class="field-help">Default currency applies to new records only. Existing currencies and amounts stay unchanged. No exchange-rate conversion is performed.</p><div class="form-error" role="alert"></div><div class="form-actions"><button class="btn">Save preferences</button></div></form></section><section class="panel"><div class="panel-header"><h2>Hosting & access</h2></div><div class="panel-body"><div class="explain"><strong>MIT licensed · No subscription fees</strong><br>Node.js 24 + SQLite. No paid API, cloud account or external banking software required. Run on a local server or your own infrastructure.</div><p class="online-note">Prototype access: one administrator role. This release does not implement multi-user permissions, encrypted backups, or a full accounting ledger. Use synthetic data until your deployment has been reviewed for real member information.</p><p class="online-note">Organization-owned records are stored on the server. Consent exports are descriptive JSON files. Field observations are explainable; no member is assigned a credit score.</p></div></section></div><section class="panel" style="margin-top:24px"><div class="panel-header"><h2>Activity trail</h2><span class="pill">Latest 30 events</span></div><div class="panel-body">${state.audit.slice(0,30).map(a=>`<div class="audit-row">${esc(a.action)}<small>${esc(a.actor)} · ${new Date(a.at).toLocaleString(activeLanguage(state))}</small></div>`).join('')||'<div class="empty">Workspace activity will appear here.</div>'}</div></section>`;}
-function field(label,name,type='text',value='',attrs='',wide=false){return `<label class="field ${wide?'wide':''}"><span class="field-label">${label}${/\brequired\b/.test(attrs)?'<span class="required-mark" aria-hidden="true"> *</span>':''}</span><input name="${name}" type="${type}" value="${esc(value)}" ${attrs}></label>`;}
-function select(label,name,options,wide=false){const optional=label.includes('(optional)')||['loanId','reportCurrency','serviceId','targetMemberId'].includes(name);return `<label class="field ${wide?'wide':''}"><span class="field-label">${label}${optional?'':'<span class="required-mark" aria-hidden="true"> *</span>'}</span><select name="${name}" ${optional?'':'required'}>${options}</select></label>`;}
-const opts=(items,id='id',label='name',selected='')=>items.map(m=>`<option value="${esc(m[id])}" ${m[id]===selected?'selected':''}>${esc(m[label])}</option>`).join('');
-function openModal(title,sub,html){const d=$('#dialog');d.innerHTML=`<div class="modal-head"><div><h2 id="modal-title">${title}</h2><p>${sub}</p></div><button class="close" data-action="close" aria-label="Close dialog">×</button></div><div class="modal-body">${html}</div>`;d.setAttribute('aria-labelledby','modal-title');d.classList.remove('wide-dialog','printable');if(!d.open)d.showModal();operationsUI.enhanceModal(title);householdUI?.enhanceModal();}
-function formHtml(fields,submit='Save record',extra=''){return `<form id="modal-form"><div class="form-grid">${fields}</div>${extra}<div class="form-error" role="alert"></div><div class="form-actions"><button class="btn secondary" type="button" data-action="close">Cancel</button><button class="btn" type="submit">${submit}</button></div></form>`;}
-function handleForm(fn,after,{refreshAfter}={}){$('#modal-form').addEventListener('submit',async e=>{e.preventDefault();const form=e.currentTarget,b=form.querySelector('button[type="submit"]');b.disabled=true;try{await fn(Object.fromEntries(new FormData(form)));$('#dialog').close();if(navigator.onLine&&(!pending.length||refreshAfter==='always'))await refresh();render();after?.();}catch(err){const error=form.querySelector('.form-error');error.textContent=err.message;error.tabIndex=-1;error.focus();}finally{b.disabled=false;}});}
-function memberModal(){if(!state.groups.length){toast('Create a group before enrolling members.');return;}openModal('Add a member','Collect only what your team needs. No full identity numbers.',formHtml(select('Household currency','currency',currencyOptions(state.settings.currency),true)+field('Full name','name','text','','required maxlength="120"')+select('Community group','groupId',opts(state.groups))+field('Livelihood / business','business','text','','required maxlength="120"',true)+field('Monthly household income','income','number','','required min="0" max="100000000" step="0.01"')+field('Monthly household expenses','expenses','number','','required min="0" max="100000000" step="0.01"')+field('Household members','household','number',3,'required min="1" max="30"')+field('Income earners','earners','number',1,'required min="0" max="30"')+select('Identity document type','identityType',opts(state.config.acceptedIds.map(x=>({id:x,name:x}))))+field('ID last four digits only','identitySuffix','text','','required pattern="[0-9]{4}" maxlength="4" inputmode="numeric"'),'Add member','<p class="field-help">Identity verification starts as pending. A field officer must attest an in-person check separately. Store only a four-digit reference from an accepted identity document.</p>'));handleForm(async b=>{await api('/members','POST',{...b,customFields:operationsUI.memberFields(b),income:+b.income,expenses:+b.expenses,household:+b.household,earners:+b.earners});toast('Member added to the register.');});}
-function groupModal(){openModal('Create a group','Assign a field officer and a meeting date.',formHtml(field('Group name','name','text','','required maxlength="120"',true)+field('Field officer','officer','text',state.user.name,'required maxlength="120"')+field('Next meeting','nextMeeting','date',today(),'required'),'Create group'));handleForm(async b=>{await api('/groups','POST',b);toast('Community group created.');});}
-function loanModal(memberId){if(!state.members.length){toast('Enroll a member first.');return;}openModal('Record an approved loan','Principal-only, interest-free tracking. No funds are disbursed.',formHtml(select('Member','memberId',opts(state.members,'id','name',memberId),true)+select('Loan currency','currency',currencyOptions(state.members.find(m=>m.id===memberId)?.currency||state.settings.currency),true)+field('Loan purpose','purpose','text','','required maxlength="120"',true)+field('Principal amount','principal','number','','required min="1" max="100000000" step="0.01"')+field('Installment amount','installment','number','','required min="1" max="100000000" step="0.01"')+select('Repayment frequency','frequency','<option value="weekly">Weekly</option><option value="fortnightly">Fortnightly</option><option value="monthly">Monthly</option>')+field('Loan start date','date','date',today(),'required'),'Record loan','<p class="field-help">This register records an approval made outside FieldLedger. Interest, fees, disbursement and regulatory checks are outside this MVP.</p>'));handleForm(async b=>{await api('/loans','POST',{...b,principal:+b.principal,installment:+b.installment});toast('Loan added to the register.');});}
-function visitModal(groupId,memberId){const ms=state.members.filter(m=>!groupId||m.groupId===groupId);if(!ms.length){toast('Enroll a member in this group first.');return;}openModal('Record a field visit','Attendance, collections, and observations from this visit.',formHtml(select('Collection currency','currency',currencyOptions(ms.find(m=>m.id===memberId)?.currency||ms[0].currency||state.settings.currency),true)+select('Member','memberId',opts(ms,'id','name',memberId))+field('Visit date','date','date',today(),`required max="${today()}"`)+select('Attendance','attendance','<option value="present">Present</option><option value="absent">Absent</option><option value="excused">Excused absence</option><option value="not-recorded">Not recorded</option>')+select('Loan being repaid','loanId','<option value="">No loan payment</option>')+field('Principal repayment received','paid','number',0,'required min="0" step="0.01" max="100000000"')+field('Savings contributed','savings','number',0,'required min="0" step="0.01" max="100000000"')+select('Loan utilisation check','utilisation','<option value="not-checked">Not checked this visit</option><option value="verified">Purpose verified in person</option><option value="follow-up">Support / follow-up needed</option>',true)+`<label class="field wide">Field notes <span class="field-help">Optional. Describe observations, and avoid sensitive identity or health details.</span><textarea name="note" maxlength="1000" placeholder="What would help your team understand this visit?"></textarea></label>`,'Save visit','<p class="field-help">One collection per member, date and currency. Offline records stay in this browser until successfully synced. Savings are recorded contributions, not a deposit account balance.</p>'));const fillLoans=()=>{const id=$('#modal-form [name="memberId"]').value,ls=state.loans.filter(l=>l.memberId===id&&l.currency===$('#modal-form [name="currency"]').value&&outstanding(l)>0);$('#modal-form [name="loanId"]').innerHTML='<option value="">No loan payment</option>'+ls.map(l=>`<option value="${l.id}">${l.id} · ${money(outstanding(l),l.currency)} remaining</option>`).join('');$('#modal-form [name="paid"]').value=0;};fillLoans();$('#modal-form [name="currency"]').addEventListener('change',fillLoans);$('#modal-form [name="memberId"]').addEventListener('change',fillLoans);$('#modal-form [name="loanId"]').addEventListener('change',e=>{const l=state.loans.find(l=>l.id===e.target.value);$('#modal-form [name="paid"]').value=l?Math.min(l.installment,outstanding(l)):0;});handleForm(async b=>{const visit={...b,paid:+b.paid,savings:+b.savings,id:crypto.randomUUID()};if(!navigator.onLine){if(state.visits.some(v=>v.memberId===b.memberId&&v.date===b.date&&v.currency===b.currency)||pending.some(v=>v.memberId===b.memberId&&v.date===b.date&&v.currency===b.currency))throw new Error('A record for this member and date already exists.');await operationsUI.queueVisit(visit);toast('Visit saved on this device. It will sync when you reconnect.');}else{await api('/visits','POST',visit);toast('Field visit saved.');}});}
-function profile(id){const m=state.members.find(m=>m.id===id),i=ind(m),rs=reasons(m);openModal(`<span data-no-translate>${esc(m.name)}</span>`,`${m.id} · ${esc(groupName(m.groupId))}`,`<div class="profile-title"><div class="avatar">${initials(m.name)}</div><div><strong data-no-translate>${esc(m.business)}</strong><p class="subtitle">Member since ${fmtDate(m.joined)} · ${m.kycVerified?'Identity check attested':'Identity verification pending'}</p></div></div><div class="profile-stats"><div class="profile-stat"><small>Attendance</small><b>${pct(i.attendance)}</b><p>${i.attPresent} present / ${i.attTotal} observations</p></div><div class="profile-stat"><small>Full payments</small><b>${pct(i.repayment)}</b><p>${i.repFull} fully paid / ${i.repTotal} recorded dues</p></div><div class="profile-stat"><small>Contributions</small><b>${moneySummary(i.savingsByCurrency,m.currency)}</b><p>Total savings recorded</p></div></div>${rs.length?`<div class="explain"><strong>Items to review</strong><br>${rs.map(esc).join('<br>')}</div>`:'<div class="explain">No follow-up flags in the recorded observations. This is not a loan approval or credit recommendation.</div>'}<h3 class="section-title">Household cash flow · self-reported monthly</h3><div class="kv"><div><small>Income</small>${money(m.income,m.currency)}</div><div><small>Expenses</small>${money(m.expenses,m.currency)}</div><div><small>Surplus before loan payments</small>${money(i.surplus,m.currency)}</div><div><small>Household / earners</small>${m.household} people / ${m.earners} earners</div><div><small>Document · last four only</small>${esc(m.identityType)} · •••• ${esc(m.identitySuffix)}</div><div><small>Latest utilisation check</small>${esc(i.utilisation.replaceAll('-',' '))}</div></div><p class="field-help">Follow-up thresholds: attendance below 80%, full recorded payments below 90%, fewer than 4 visits, no surplus, pending identity, or utilisation follow-up. Missing data is unknown. No composite score or automatic credit decision.</p><div class="actions" style="flex-wrap:wrap;margin:20px 0">${button('Record visit','visit','plus',false,`data-id="${m.id}"`)}${button('Add loan','loan','wallet',true,`data-id="${m.id}"`)}${!m.kycVerified?button('Attest ID check','verify','check',true,`data-id="${m.id}"`):''}${button(consentActive(m)?'Export profile':'Sharing permission',consentActive(m)?'export':'consent',consentActive(m)?'down':'shield',true,`data-id="${m.id}"`)}</div><h3 class="section-title">Recent field history</h3>${visitsFor(id).slice().sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5).map(v=>`<div class="visit-item"><div><strong>${fmtDate(v.date)} · ${esc(v.attendance)}</strong><small class="visit-note">${esc(v.note||'No additional notes')}</small></div><div>${money(v.paid,v.currency)} repaid<small>${money(v.savings,v.currency)} saved</small></div></div>`).join('')||'<p class="subtitle">No observations yet.</p>'}`);}
-function consentModal(id){const m=state.members.find(m=>m.id===id);openModal('Permission to share',`Explain the record to ${esc(m.name)} before recording their choice.`,formHtml(field('Named recipient / organization','recipient','text','','required maxlength="120"',true)+field('Purpose of sharing','purpose','text','','required maxlength="120"',true),'Record permission',`<div class="explain" style="margin-top:20px">This permits a named profile export with attendance, repayment, savings and household surplus indicators. Valid for 30 days. It does not permit wider sharing. A downloaded copy cannot be recalled.</div><label class="check" style="margin-top:18px"><input type="checkbox" name="attested" required><span>I explained the recipient, purpose, included information, expiry and revocation limits in a language the member understands. The member explicitly agreed.</span></label>`));handleForm(async b=>{await api(`/members/${id}/consent`,'POST',{...b,attested:b.attested==='on',granted:true});toast('Member permission recorded for 30 days.');});}
-async function sync(){return operationsUI.sync();}
+function memberToolbar() {
+  return `<div class="table-toolbar"><label class="search">${icon('search')}<input id="member-search" aria-label="Search members" placeholder="Search by name or member ID…" value="${esc(query)}"><button type="button" class="search-clear" aria-label="Clear search" ${query ? '' : 'hidden'}>×</button></label><select class="filter" id="member-filter" aria-label="Filter members"><option value="">All members</option><option value="review" ${filter === 'review' ? 'selected' : ''}>Needs review</option>${state.groups.map(g => `<option value="${g.id}" ${filter === g.id ? 'selected' : ''}>${esc(g.name)}</option>`).join('')}</select></div>`;
+}
+function memberTable(limit) {
+  const ms = state.members.filter(
+    m =>
+      (!query || `${m.name} ${m.id}`.toLowerCase().includes(query.toLowerCase())) &&
+      (!filter || (filter === 'review' ? reasons(m).length : m.groupId === filter))
+  );
+  return `<div class="table-wrap"><table><thead><tr><th>Member</th><th>Group</th><th>Attendance</th><th>Full payments</th><th>Follow-up</th><th></th></tr></thead><tbody>${ms
+    .slice(0, limit || 10000)
+    .map(m => {
+      const i = ind(m),
+        review = reasons(m).length;
+      return `<tr><td><div class="member-cell"><div class="avatar">${initials(m.name)}</div><div><strong>${esc(m.name)}</strong><small>${m.id}</small></div></div></td><td>${esc(groupName(m.groupId))}</td><td><span class="progress"><i style="width:${i.attendance || 0}%"></i></span>${pct(i.attendance)}</td><td>${pct(i.repayment)} <span class="number-note">${i.repTotal ? 'full payments' : 'No dues recorded'}</span></td><td><span class="badge ${review ? 'amber' : ''}"><i class="dot ${review ? 'off' : ''}"></i>${review ? 'Needs review' : 'Up to date'}</span></td><td><button class="arrow" data-action="profile" data-id="${m.id}" aria-label="View ${esc(m.name)}">${icon('arrow')}</button></td></tr>`;
+    })
+    .join(
+      ''
+    )}</tbody></table>${!ms.length ? '<div class="empty">No members match. Try another search or add your first member.</div>' : ''}</div>`;
+}
+function bindSearch() {
+  const input = $('#member-search'),
+    clear = $('.search-clear');
+  const update = () => {
+    const target = $('#member-table');
+    target.innerHTML = memberTable(page === 'overview' ? 6 : undefined);
+    translate(target, activeLanguage(state));
+    if (clear) clear.hidden = !query;
+    const count = $('#member-results');
+    if (count)
+      count.textContent = `${target.querySelectorAll('tbody tr').length} / ${state.members.length} ${t('Members', activeLanguage(state))}`;
+  };
+  input?.addEventListener('input', () => {
+    query = input.value;
+    update();
+  });
+  clear?.addEventListener('click', () => {
+    query = '';
+    input.value = '';
+    update();
+    input.focus();
+  });
+  $('#member-filter')?.addEventListener('change', e => {
+    filter = e.target.value;
+    update();
+  });
+}
+function membersPage() {
+  return (
+    heading(
+      'Member records',
+      'Members',
+      'Search the register, review observations, or enroll a new member.',
+      button('Add member', 'member')
+    ) + `<section class="panel">${memberToolbar()}<div id="member-table">${memberTable()}</div></section>`
+  );
+}
+function groupsPage() {
+  return (
+    heading(
+      'Group records',
+      'Community groups',
+      'Meeting schedules, assigned officers, and member contributions.',
+      button('Create group', 'group')
+    ) +
+    `<div class="group-grid">${
+      state.groups
+        .map(g => {
+          const ms = state.members.filter(m => m.groupId === g.id);
+          return `<section class="panel group-card"><div class="group-icon">${icon('group')}</div><div class="eyebrow">${g.id}</div><h2 data-no-translate>${esc(g.name)}</h2><div class="group-numbers"><div><b>${ms.length}</b><small>Members</small></div><div><b>${moneySummary(
+            totalsByCurrency(
+              state.visits.filter(v => ms.some(m => m.id === v.memberId)),
+              'savings',
+              state.settings.currency
+            )
+          )}</b><small>Recorded savings</small></div></div><p>Field officer · ${esc(g.officer)}</p><p>Next meeting · ${fmtDate(g.nextMeeting)} at ${g.time}</p><div class="actions">${button('Record visit', 'visit', 'plus', false, `data-group="${g.id}"`)}<button class="text-btn" data-action="group-members" data-id="${g.id}">Members ${icon('arrow')}</button></div></section>`;
+        })
+        .join('') || '<div class="empty">Start by creating your first community group.</div>'
+    }</div>`
+  );
+}
+function meetingsPage() {
+  return (
+    heading(
+      'Field operations',
+      'Field visits',
+      'Record attendance, collections, and loan utilisation checks.',
+      button('Record a visit', 'visit')
+    ) +
+    `${pending.length ? `<div class="review-strip">${icon('clock')}<span><strong>${pending.length} records waiting to sync.</strong> Saved on this device. Keep this browser’s data until they are synced.</span><button class="text-btn" data-action="sync">Sync now ${icon('arrow')}</button></div>` : ''}<div class="split"><section class="panel"><div class="panel-header"><h2>Group meetings</h2></div><div style="padding-top:15px">${state.groups.map(g => meetingRow(g, true)).join('') || '<div class="empty">No groups yet.</div>'}</div></section><section class="panel"><div class="panel-header"><h2>Recent observations</h2><span class="pill">${state.visits.length} records</span></div><div class="panel-body">${
+      state.visits
+        .slice()
+        .sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt))
+        .slice(0, 8)
+        .map(
+          v =>
+            `<div class="visit-item"><div><strong>${esc(state.members.find(m => m.id === v.memberId)?.name || v.memberId)}</strong><small>${fmtDate(v.date)} · ${esc(v.attendance)} · ${esc(v.officer)}</small>${v.note ? `<small class="visit-note">${esc(v.note)}</small>` : ''}</div><div>${money(v.paid, v.currency)} repaid<small>${money(v.savings, v.currency)} saved</small></div></div>`
+        )
+        .join('') || '<div class="empty">No field visits recorded yet.</div>'
+    }</div></section></div><div class="explain" style="margin-top:24px"><strong>Offline capture</strong><br>The app shell works offline after the first visit. Demo records are cached on this device. Offline observations are queued locally and sent to the server when you reconnect; a valid login is required to sync. Real workspaces require an open session to prepare offline capture. This prototype does not encrypt device storage.</div>`
+  );
+}
+function loansPage() {
+  return (
+    heading(
+      'Lending records',
+      'Loan register',
+      'Record loans approved by your organization and track principal repayments.',
+      button('Record a loan', 'loan')
+    ) +
+    `<div class="explain" style="margin-bottom:23px">This MVP tracks principal-only, interest-free loans. It does not disburse money, calculate interest, or approve credit. Schedules calculate amounts due from installment dates. Visit-based payment percentages remain separate descriptive indicators.</div><section class="panel"><div class="table-wrap"><table><thead><tr><th>Member / loan</th><th>Purpose</th><th>Principal</th><th>Remaining</th><th>Installment</th><th>Status</th></tr></thead><tbody>${state.loans.map(l => `<tr><td><button class="text-btn" data-action="profile" data-id="${l.memberId}">${esc(state.members.find(m => m.id === l.memberId)?.name)}</button><div class="field-help">${l.id}</div></td><td>${esc(l.purpose)}</td><td>${money(l.principal, l.currency)}</td><td>${money(outstanding(l), l.currency)}</td><td>${money(l.installment, l.currency)} / ${esc(l.frequency)}</td><td><span class="badge ${outstanding(l) ? '' : 'gray'}">${outstanding(l) ? 'Active' : 'Repaid'}</span></td></tr>`).join('')}</tbody></table>${!state.loans.length ? '<div class="empty">No loans recorded yet.</div>' : ''}</div></section>`
+  );
+}
+function consentPage() {
+  return (
+    heading(
+      'Member permissions',
+      'Consent & sharing',
+      'A member’s record is shared only with their explicit, recorded permission.'
+    ) +
+    `<div class="explain" style="margin-bottom:24px">Exports contain named descriptive indicators, the recipient, and the purpose. Sharing permission expires after 30 days. Revocation stops future exports; it cannot recall a copy already downloaded. Exports are not signed credentials.</div><section class="panel"><div class="table-wrap"><table><thead><tr><th>Member</th><th>Permission</th><th>Recipient</th><th>Expires</th><th>Actions</th></tr></thead><tbody>${state.members.map(m => `<tr><td><strong>${esc(m.name)}</strong><div class="field-help">${m.id}</div></td><td><span class="badge ${consentActive(m) ? '' : 'gray'}">${consentActive(m) ? 'Permission recorded' : m.consent?.granted ? 'Expired' : 'Not shared'}</span></td><td>${consentActive(m) ? esc(m.consent.recipient) : '—'}</td><td>${consentActive(m) ? fmtDate(m.consent.expires.slice(0, 10)) : '—'}</td><td><div class="actions">${consentActive(m) ? `<button class="text-btn" data-action="export" data-id="${m.id}">Export ${icon('down')}</button><button class="text-btn" data-action="revoke" data-id="${m.id}">Revoke</button>` : `<button class="text-btn" data-action="consent" data-id="${m.id}">Record permission ${icon('arrow')}</button>`}</div></td></tr>`).join('')}</tbody></table></div></section>`
+  );
+}
+function settingsPage() {
+  return (
+    heading('Workspace settings', 'Organization', 'Manage your organization’s details and review workspace activity.') +
+    `<div class="settings-grid"><section class="panel"><div class="panel-header"><h2>Workspace preferences</h2></div><form id="settings-form" class="panel-body"><div class="form-grid">${field('Organization name', 'name', 'text', state.settings.name, 'required', true)}${field('Country', 'country', 'text', state.settings.country, 'required')}<label class="field">Default currency<select name="currency">${CURRENCIES.map(c => `<option ${state.settings.currency === c ? 'selected' : ''}>${c}</option>`).join('')}</select></label></div><p class="field-help">Default currency applies to new records only. Existing currencies and amounts stay unchanged. No exchange-rate conversion is performed.</p><div class="form-error" role="alert"></div><div class="form-actions"><button class="btn">Save preferences</button></div></form></section><section class="panel"><div class="panel-header"><h2>Hosting & access</h2></div><div class="panel-body"><div class="explain"><strong>MIT licensed · No subscription fees</strong><br>Node.js 24 + SQLite. No paid API, cloud account or external banking software required. Run on a local server or your own infrastructure.</div><p class="online-note">Prototype access: one administrator role. This release does not implement multi-user permissions, encrypted backups, or a full accounting ledger. Use synthetic data until your deployment has been reviewed for real member information.</p><p class="online-note">Organization-owned records are stored on the server. Consent exports are descriptive JSON files. Field observations are explainable; no member is assigned a credit score.</p></div></section></div><section class="panel" style="margin-top:24px"><div class="panel-header"><h2>Activity trail</h2><span class="pill">Latest 30 events</span></div><div class="panel-body">${
+      state.audit
+        .slice(0, 30)
+        .map(
+          a =>
+            `<div class="audit-row">${esc(a.action)}<small>${esc(a.actor)} · ${new Date(a.at).toLocaleString(activeLanguage(state))}</small></div>`
+        )
+        .join('') || '<div class="empty">Workspace activity will appear here.</div>'
+    }</div></section>`
+  );
+}
+function field(label, name, type = 'text', value = '', attrs = '', wide = false) {
+  return `<label class="field ${wide ? 'wide' : ''}"><span class="field-label">${label}${/\brequired\b/.test(attrs) ? '<span class="required-mark" aria-hidden="true"> *</span>' : ''}</span><input name="${name}" type="${type}" value="${esc(value)}" ${attrs}></label>`;
+}
+function select(label, name, options, wide = false) {
+  const optional =
+    label.includes('(optional)') || ['loanId', 'reportCurrency', 'serviceId', 'targetMemberId'].includes(name);
+  return `<label class="field ${wide ? 'wide' : ''}"><span class="field-label">${label}${optional ? '' : '<span class="required-mark" aria-hidden="true"> *</span>'}</span><select name="${name}" ${optional ? '' : 'required'}>${options}</select></label>`;
+}
+const opts = (items, id = 'id', label = 'name', selected = '') =>
+  items
+    .map(m => `<option value="${esc(m[id])}" ${m[id] === selected ? 'selected' : ''}>${esc(m[label])}</option>`)
+    .join('');
+function openModal(title, sub, html) {
+  const d = $('#dialog');
+  d.innerHTML = `<div class="modal-head"><div><h2 id="modal-title">${title}</h2><p>${sub}</p></div><button class="close" data-action="close" aria-label="Close dialog">×</button></div><div class="modal-body">${html}</div>`;
+  d.setAttribute('aria-labelledby', 'modal-title');
+  d.classList.remove('wide-dialog', 'printable');
+  if (!d.open) d.showModal();
+  operationsUI.enhanceModal(title);
+  householdUI?.enhanceModal();
+}
+function formHtml(fields, submit = 'Save record', extra = '') {
+  return `<form id="modal-form"><div class="form-grid">${fields}</div>${extra}<div class="form-error" role="alert"></div><div class="form-actions"><button class="btn secondary" type="button" data-action="close">Cancel</button><button class="btn" type="submit">${submit}</button></div></form>`;
+}
+function handleForm(fn, after, { refreshAfter } = {}) {
+  $('#modal-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const form = e.currentTarget,
+      b = form.querySelector('button[type="submit"]');
+    b.disabled = true;
+    try {
+      await fn(Object.fromEntries(new FormData(form)));
+      $('#dialog').close();
+      if (navigator.onLine && (!pending.length || refreshAfter === 'always')) await refresh();
+      render();
+      after?.();
+    } catch (err) {
+      const error = form.querySelector('.form-error');
+      error.textContent = err.message;
+      error.tabIndex = -1;
+      error.focus();
+    } finally {
+      b.disabled = false;
+    }
+  });
+}
+function memberModal() {
+  if (!state.groups.length) {
+    toast('Create a group before enrolling members.');
+    return;
+  }
+  openModal(
+    'Add a member',
+    'Collect only what your team needs. No full identity numbers.',
+    formHtml(
+      select('Household currency', 'currency', currencyOptions(state.settings.currency), true) +
+        field('Full name', 'name', 'text', '', 'required maxlength="120"') +
+        select('Community group', 'groupId', opts(state.groups)) +
+        field('Livelihood / business', 'business', 'text', '', 'required maxlength="120"', true) +
+        field('Monthly household income', 'income', 'number', '', 'required min="0" max="100000000" step="0.01"') +
+        field('Monthly household expenses', 'expenses', 'number', '', 'required min="0" max="100000000" step="0.01"') +
+        field('Household members', 'household', 'number', 3, 'required min="1" max="30"') +
+        field('Income earners', 'earners', 'number', 1, 'required min="0" max="30"') +
+        select(
+          'Identity document type',
+          'identityType',
+          opts(state.config.acceptedIds.map(x => ({ id: x, name: x })))
+        ) +
+        field(
+          'ID last four digits only',
+          'identitySuffix',
+          'text',
+          '',
+          'required pattern="[0-9]{4}" maxlength="4" inputmode="numeric"'
+        ),
+      'Add member',
+      '<p class="field-help">Identity verification starts as pending. A field officer must attest an in-person check separately. Store only a four-digit reference from an accepted identity document.</p>'
+    )
+  );
+  handleForm(async b => {
+    await api('/members', 'POST', {
+      ...b,
+      customFields: operationsUI.memberFields(b),
+      income: +b.income,
+      expenses: +b.expenses,
+      household: +b.household,
+      earners: +b.earners,
+    });
+    toast('Member added to the register.');
+  });
+}
+function groupModal() {
+  openModal(
+    'Create a group',
+    'Assign a field officer and a meeting date.',
+    formHtml(
+      field('Group name', 'name', 'text', '', 'required maxlength="120"', true) +
+        field('Field officer', 'officer', 'text', state.user.name, 'required maxlength="120"') +
+        field('Next meeting', 'nextMeeting', 'date', today(), 'required'),
+      'Create group'
+    )
+  );
+  handleForm(async b => {
+    await api('/groups', 'POST', b);
+    toast('Community group created.');
+  });
+}
+function loanModal(memberId) {
+  if (!state.members.length) {
+    toast('Enroll a member first.');
+    return;
+  }
+  openModal(
+    'Record an approved loan',
+    'Principal-only, interest-free tracking. No funds are disbursed.',
+    formHtml(
+      select('Member', 'memberId', opts(state.members, 'id', 'name', memberId), true) +
+        select(
+          'Loan currency',
+          'currency',
+          currencyOptions(state.members.find(m => m.id === memberId)?.currency || state.settings.currency),
+          true
+        ) +
+        field('Loan purpose', 'purpose', 'text', '', 'required maxlength="120"', true) +
+        field('Principal amount', 'principal', 'number', '', 'required min="1" max="100000000" step="0.01"') +
+        field('Installment amount', 'installment', 'number', '', 'required min="1" max="100000000" step="0.01"') +
+        select(
+          'Repayment frequency',
+          'frequency',
+          '<option value="weekly">Weekly</option><option value="fortnightly">Fortnightly</option><option value="monthly">Monthly</option>'
+        ) +
+        field('Loan start date', 'date', 'date', today(), 'required'),
+      'Record loan',
+      '<p class="field-help">This register records an approval made outside FieldLedger. Interest, fees, disbursement and regulatory checks are outside this MVP.</p>'
+    )
+  );
+  handleForm(async b => {
+    await api('/loans', 'POST', { ...b, principal: +b.principal, installment: +b.installment });
+    toast('Loan added to the register.');
+  });
+}
+function visitModal(groupId, memberId) {
+  const ms = state.members.filter(m => !groupId || m.groupId === groupId);
+  if (!ms.length) {
+    toast('Enroll a member in this group first.');
+    return;
+  }
+  openModal(
+    'Record a field visit',
+    'Attendance, collections, and observations from this visit.',
+    formHtml(
+      select(
+        'Collection currency',
+        'currency',
+        currencyOptions(ms.find(m => m.id === memberId)?.currency || ms[0].currency || state.settings.currency),
+        true
+      ) +
+        select('Member', 'memberId', opts(ms, 'id', 'name', memberId)) +
+        field('Visit date', 'date', 'date', today(), `required max="${today()}"`) +
+        select(
+          'Attendance',
+          'attendance',
+          '<option value="present">Present</option><option value="absent">Absent</option><option value="excused">Excused absence</option><option value="not-recorded">Not recorded</option>'
+        ) +
+        select('Loan being repaid', 'loanId', '<option value="">No loan payment</option>') +
+        field('Principal repayment received', 'paid', 'number', 0, 'required min="0" step="0.01" max="100000000"') +
+        field('Savings contributed', 'savings', 'number', 0, 'required min="0" step="0.01" max="100000000"') +
+        select(
+          'Loan utilisation check',
+          'utilisation',
+          '<option value="not-checked">Not checked this visit</option><option value="verified">Purpose verified in person</option><option value="follow-up">Support / follow-up needed</option>',
+          true
+        ) +
+        `<label class="field wide">Field notes <span class="field-help">Optional. Describe observations, and avoid sensitive identity or health details.</span><textarea name="note" maxlength="1000" placeholder="What would help your team understand this visit?"></textarea></label>`,
+      'Save visit',
+      '<p class="field-help">One collection per member, date and currency. Offline records stay in this browser until successfully synced. Savings are recorded contributions, not a deposit account balance.</p>'
+    )
+  );
+  const fillLoans = () => {
+    const id = $('#modal-form [name="memberId"]').value,
+      ls = state.loans.filter(
+        l => l.memberId === id && l.currency === $('#modal-form [name="currency"]').value && outstanding(l) > 0
+      );
+    $('#modal-form [name="loanId"]').innerHTML =
+      '<option value="">No loan payment</option>' +
+      ls.map(l => `<option value="${l.id}">${l.id} · ${money(outstanding(l), l.currency)} remaining</option>`).join('');
+    $('#modal-form [name="paid"]').value = 0;
+  };
+  fillLoans();
+  $('#modal-form [name="currency"]').addEventListener('change', fillLoans);
+  $('#modal-form [name="memberId"]').addEventListener('change', fillLoans);
+  $('#modal-form [name="loanId"]').addEventListener('change', e => {
+    const l = state.loans.find(l => l.id === e.target.value);
+    $('#modal-form [name="paid"]').value = l ? Math.min(l.installment, outstanding(l)) : 0;
+  });
+  handleForm(async b => {
+    const visit = { ...b, paid: +b.paid, savings: +b.savings, id: crypto.randomUUID() };
+    if (!navigator.onLine) {
+      if (
+        state.visits.some(v => v.memberId === b.memberId && v.date === b.date && v.currency === b.currency) ||
+        pending.some(v => v.memberId === b.memberId && v.date === b.date && v.currency === b.currency)
+      )
+        throw new Error('A record for this member and date already exists.');
+      await operationsUI.queueVisit(visit);
+      toast('Visit saved on this device. It will sync when you reconnect.');
+    } else {
+      await api('/visits', 'POST', visit);
+      toast('Field visit saved.');
+    }
+  });
+}
+function profile(id) {
+  const m = state.members.find(m => m.id === id),
+    i = ind(m),
+    rs = reasons(m);
+  openModal(
+    `<span data-no-translate>${esc(m.name)}</span>`,
+    `${m.id} · ${esc(groupName(m.groupId))}`,
+    `<div class="profile-title"><div class="avatar">${initials(m.name)}</div><div><strong data-no-translate>${esc(m.business)}</strong><p class="subtitle">Member since ${fmtDate(m.joined)} · ${m.kycVerified ? 'Identity check attested' : 'Identity verification pending'}</p></div></div><div class="profile-stats"><div class="profile-stat"><small>Attendance</small><b>${pct(i.attendance)}</b><p>${i.attPresent} present / ${i.attTotal} observations</p></div><div class="profile-stat"><small>Full payments</small><b>${pct(i.repayment)}</b><p>${i.repFull} fully paid / ${i.repTotal} recorded dues</p></div><div class="profile-stat"><small>Contributions</small><b>${moneySummary(i.savingsByCurrency, m.currency)}</b><p>Total savings recorded</p></div></div>${rs.length ? `<div class="explain"><strong>Items to review</strong><br>${rs.map(esc).join('<br>')}</div>` : '<div class="explain">No follow-up flags in the recorded observations. This is not a loan approval or credit recommendation.</div>'}<h3 class="section-title">Household cash flow · self-reported monthly</h3><div class="kv"><div><small>Income</small>${money(m.income, m.currency)}</div><div><small>Expenses</small>${money(m.expenses, m.currency)}</div><div><small>Surplus before loan payments</small>${money(i.surplus, m.currency)}</div><div><small>Household / earners</small>${m.household} people / ${m.earners} earners</div><div><small>Document · last four only</small>${esc(m.identityType)} · •••• ${esc(m.identitySuffix)}</div><div><small>Latest utilisation check</small>${esc(i.utilisation.replaceAll('-', ' '))}</div></div><p class="field-help">Follow-up thresholds: attendance below 80%, full recorded payments below 90%, fewer than 4 visits, no surplus, pending identity, or utilisation follow-up. Missing data is unknown. No composite score or automatic credit decision.</p><div class="actions" style="flex-wrap:wrap;margin:20px 0">${button('Record visit', 'visit', 'plus', false, `data-id="${m.id}"`)}${button('Add loan', 'loan', 'wallet', true, `data-id="${m.id}"`)}${!m.kycVerified ? button('Attest ID check', 'verify', 'check', true, `data-id="${m.id}"`) : ''}${button(consentActive(m) ? 'Export profile' : 'Sharing permission', consentActive(m) ? 'export' : 'consent', consentActive(m) ? 'down' : 'shield', true, `data-id="${m.id}"`)}</div><h3 class="section-title">Recent field history</h3>${
+      visitsFor(id)
+        .slice()
+        .sort((a, b) => b.date.localeCompare(a.date))
+        .slice(0, 5)
+        .map(
+          v =>
+            `<div class="visit-item"><div><strong>${fmtDate(v.date)} · ${esc(v.attendance)}</strong><small class="visit-note">${esc(v.note || 'No additional notes')}</small></div><div>${money(v.paid, v.currency)} repaid<small>${money(v.savings, v.currency)} saved</small></div></div>`
+        )
+        .join('') || '<p class="subtitle">No observations yet.</p>'
+    }`
+  );
+}
+function consentModal(id) {
+  const m = state.members.find(m => m.id === id);
+  openModal(
+    'Permission to share',
+    `Explain the record to ${esc(m.name)} before recording their choice.`,
+    formHtml(
+      field('Named recipient / organization', 'recipient', 'text', '', 'required maxlength="120"', true) +
+        field('Purpose of sharing', 'purpose', 'text', '', 'required maxlength="120"', true),
+      'Record permission',
+      `<div class="explain" style="margin-top:20px">This permits a named profile export with attendance, repayment, savings and household surplus indicators. Valid for 30 days. It does not permit wider sharing. A downloaded copy cannot be recalled.</div><label class="check" style="margin-top:18px"><input type="checkbox" name="attested" required><span>I explained the recipient, purpose, included information, expiry and revocation limits in a language the member understands. The member explicitly agreed.</span></label>`
+    )
+  );
+  handleForm(async b => {
+    await api(`/members/${id}/consent`, 'POST', { ...b, attested: b.attested === 'on', granted: true });
+    toast('Member permission recorded for 30 days.');
+  });
+}
+async function sync() {
+  return operationsUI.sync();
+}
 
-document.addEventListener('click',async e=>{const n=e.target.closest('[data-nav]');if(n){nav(n.dataset.nav);return;}const b=e.target.closest('[data-action]');if(!b)return;const id=b.dataset.id;try{switch(b.dataset.action){case 'open-meetings':nav('meetings');break;case 'open-followups':nav('followups');break;case 'menu':{const open=$('.sidebar').classList.toggle('open');$('.mobile-toggle').setAttribute('aria-expanded',String(open));if(open)$('.nav button').focus();else $('.mobile-toggle').focus();break;}case 'close':$('#dialog').close();break;case 'member':memberModal();break;case 'group':groupModal();break;case 'loan':loanModal(id);break;case 'visit':visitModal(b.dataset.group,id);break;case 'profile':profile(id);break;case 'review':nav('members');filter='review';render();break;case 'group-members':nav('members');filter=id;render();break;case 'consent':consentModal(id);break;case 'verify':openModal('Attest identity verification','This records an officer’s check; it does not verify a document automatically.',formHtml('<label class="check field wide"><input type="checkbox" required><span>I checked an accepted identity document in person and confirmed it belongs to this member.</span></label>','Record attestation'));handleForm(async()=>{await api(`/members/${id}/verify`,'POST',{});toast('Identity check attested.');});break;case 'export':{const data=await api(`/members/${id}/export`),url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download=`fieldledger-${id}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('Profile exported for the permitted recipient.');await refresh();break;}case 'revoke':await api(`/members/${id}/consent`,'POST',{granted:false});await refresh();render();toast('Permission revoked. Future exports are blocked; downloaded copies cannot be recalled.');break;case 'sync':await sync();break;case 'reconnect':session=await rawApi('/session');if(session.user?.id===state.user.id){await refresh();render();await sync();}else login();break;case 'lock-workspace':lockWorkspace();break;case 'logout':if(operationsUI.isSyncing()){toast('Wait for syncing to finish before signing out.');break;}operationsUI.lock();try{await rawApi('/logout','POST',{});}catch{}clearLegacyDemoCache();state=null;serverState=null;pending=[];offlineLogin();break;}}catch(err){toast(err.message);}});
-document.addEventListener('submit',async e=>{if(e.target.id!=='settings-form')return;e.preventDefault();const f=e.target;try{await api('/settings','POST',Object.fromEntries(new FormData(f)));await refresh();render();toast('Organization preferences saved.');}catch(err){f.querySelector('.form-error').textContent=err.message;}});
-window.addEventListener('online',()=>sync().catch(e=>toast(e.message)));window.addEventListener('offline',()=>{if(state){usingSaved=true;render();}});
-window.addEventListener('hashchange',()=>{const p=location.hash.slice(1);if(routes[p]&&p!==page){page=p;render();}});
-$('#dialog').addEventListener('click',e=>{if(e.target===$('#dialog')){const r=e.target.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)e.target.close();}});
-document.addEventListener('change',e=>{if(e.target.matches('.language-select')){rememberLanguage(e.target.value,state);if(state)render();else login();}if(e.target.matches('[name="reportCurrency"]')){reportCurrency=e.target.value;render();}});
-if('serviceWorker'in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});
-async function init(){clearLegacyDemoCache();page=routes[location.hash.slice(1)]?location.hash.slice(1):'workers';if(savedWorkspaces().length){offlineLogin();return;}try{session=await rawApi('/session');if(session.user){await refresh();render();}else login();}catch(e){$('#app').innerHTML='<div class="loading">No saved workspace on this device<span>Connect to FieldLedger once, sign in and set up offline access.</span></div>';}}
-const operationsUI=createOperationsUI({getState:()=>state,getServerState:()=>serverState,setPending:items=>{pending=items;if(serverState)state=projectOffline(serverState,items);},api,rawApi,acceptWorkspace,lockWorkspace,esc,money,field,select,opts,button,heading,openModal,formHtml,handleForm,toast,today,outstanding,refresh,render,currency,currencyOptions,moneySummary});
-const certificateUI=createCertificateUI({getState:()=>state,api,rawApi,esc,field,select,opts,button,heading,openModal,formHtml,handleForm,toast,today,refresh,render,operationsUI});
-const supportUI=createSupportUI({getState:()=>state,api,esc,money,field,select,opts,button,heading,openModal,formHtml,toast,today,refresh,render,operationsUI});
-const householdUI=createHouseholdUI({getState:()=>state,api,esc,money,field,select,opts,button,heading,openModal,formHtml,handleForm,toast,today,refresh,render,nav,currencyOptions,operationsUI});
+document.addEventListener('click', async e => {
+  const n = e.target.closest('[data-nav]');
+  if (n) {
+    nav(n.dataset.nav);
+    return;
+  }
+  const b = e.target.closest('[data-action]');
+  if (!b) return;
+  const id = b.dataset.id;
+  try {
+    switch (b.dataset.action) {
+      case 'open-meetings':
+        nav('meetings');
+        break;
+      case 'open-followups':
+        nav('followups');
+        break;
+      case 'menu': {
+        const open = $('.sidebar').classList.toggle('open');
+        $('.mobile-toggle').setAttribute('aria-expanded', String(open));
+        if (open) $('.nav button').focus();
+        else $('.mobile-toggle').focus();
+        break;
+      }
+      case 'close':
+        $('#dialog').close();
+        break;
+      case 'member':
+        memberModal();
+        break;
+      case 'group':
+        groupModal();
+        break;
+      case 'loan':
+        loanModal(id);
+        break;
+      case 'visit':
+        visitModal(b.dataset.group, id);
+        break;
+      case 'profile':
+        profile(id);
+        break;
+      case 'review':
+        nav('members');
+        filter = 'review';
+        render();
+        break;
+      case 'group-members':
+        nav('members');
+        filter = id;
+        render();
+        break;
+      case 'consent':
+        consentModal(id);
+        break;
+      case 'verify':
+        openModal(
+          'Attest identity verification',
+          'This records an officer’s check; it does not verify a document automatically.',
+          formHtml(
+            '<label class="check field wide"><input type="checkbox" required><span>I checked an accepted identity document in person and confirmed it belongs to this member.</span></label>',
+            'Record attestation'
+          )
+        );
+        handleForm(async () => {
+          await api(`/members/${id}/verify`, 'POST', {});
+          toast('Identity check attested.');
+        });
+        break;
+      case 'export': {
+        const data = await api(`/members/${id}/export`),
+          url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })),
+          a = document.createElement('a');
+        a.href = url;
+        a.download = `fieldledger-${id}.json`;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        toast('Profile exported for the permitted recipient.');
+        await refresh();
+        break;
+      }
+      case 'revoke':
+        await api(`/members/${id}/consent`, 'POST', { granted: false });
+        await refresh();
+        render();
+        toast('Permission revoked. Future exports are blocked; downloaded copies cannot be recalled.');
+        break;
+      case 'sync':
+        await sync();
+        break;
+      case 'reconnect':
+        session = await rawApi('/session');
+        if (session.user?.id === state.user.id) {
+          await refresh();
+          render();
+          await sync();
+        } else login();
+        break;
+      case 'lock-workspace':
+        lockWorkspace();
+        break;
+      case 'logout':
+        if (operationsUI.isSyncing()) {
+          toast('Wait for syncing to finish before signing out.');
+          break;
+        }
+        operationsUI.lock();
+        try {
+          await rawApi('/logout', 'POST', {});
+        } catch {}
+        clearLegacyDemoCache();
+        state = null;
+        serverState = null;
+        pending = [];
+        offlineLogin();
+        break;
+    }
+  } catch (err) {
+    toast(err.message);
+  }
+});
+document.addEventListener('submit', async e => {
+  if (e.target.id !== 'settings-form') return;
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await api('/settings', 'POST', Object.fromEntries(new FormData(f)));
+    await refresh();
+    render();
+    toast('Organization preferences saved.');
+  } catch (err) {
+    f.querySelector('.form-error').textContent = err.message;
+  }
+});
+window.addEventListener('online', () => sync().catch(e => toast(e.message)));
+window.addEventListener('offline', () => {
+  if (state) {
+    usingSaved = true;
+    render();
+  }
+});
+window.addEventListener('hashchange', () => {
+  const p = location.hash.slice(1);
+  if (routes[p] && p !== page) {
+    page = p;
+    render();
+  }
+});
+$('#dialog').addEventListener('click', e => {
+  if (e.target === $('#dialog')) {
+    const r = e.target.getBoundingClientRect();
+    if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) e.target.close();
+  }
+});
+document.addEventListener('change', e => {
+  if (e.target.matches('.language-select')) {
+    rememberLanguage(e.target.value, state);
+    if (state) render();
+    else login();
+  }
+  if (e.target.matches('[name="reportCurrency"]')) {
+    reportCurrency = e.target.value;
+    render();
+  }
+});
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+async function init() {
+  clearLegacyDemoCache();
+  page = routes[location.hash.slice(1)] ? location.hash.slice(1) : 'workers';
+  if (savedWorkspaces().length) {
+    offlineLogin();
+    return;
+  }
+  try {
+    session = await rawApi('/session');
+    if (session.user) {
+      await refresh();
+      render();
+    } else login();
+  } catch (e) {
+    $('#app').innerHTML =
+      '<div class="loading">No saved workspace on this device<span>Connect to FieldLedger once, sign in and set up offline access.</span></div>';
+  }
+}
+const operationsUI = createOperationsUI({
+  getState: () => state,
+  getServerState: () => serverState,
+  setPending: items => {
+    pending = items;
+    if (serverState) state = projectOffline(serverState, items);
+  },
+  api,
+  rawApi,
+  acceptWorkspace,
+  lockWorkspace,
+  esc,
+  money,
+  field,
+  select,
+  opts,
+  button,
+  heading,
+  openModal,
+  formHtml,
+  handleForm,
+  toast,
+  today,
+  outstanding,
+  refresh,
+  render,
+  currency,
+  currencyOptions,
+  moneySummary,
+});
+const certificateUI = createCertificateUI({
+  getState: () => state,
+  api,
+  rawApi,
+  esc,
+  field,
+  select,
+  opts,
+  button,
+  heading,
+  openModal,
+  formHtml,
+  handleForm,
+  toast,
+  today,
+  refresh,
+  render,
+  operationsUI,
+});
+const supportUI = createSupportUI({
+  getState: () => state,
+  api,
+  esc,
+  money,
+  field,
+  select,
+  opts,
+  button,
+  heading,
+  openModal,
+  formHtml,
+  toast,
+  today,
+  refresh,
+  render,
+  operationsUI,
+});
+const householdUI = createHouseholdUI({
+  getState: () => state,
+  api,
+  esc,
+  money,
+  field,
+  select,
+  opts,
+  button,
+  heading,
+  openModal,
+  formHtml,
+  handleForm,
+  toast,
+  today,
+  refresh,
+  render,
+  nav,
+  currencyOptions,
+  operationsUI,
+});
 init();
 
-document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('.sidebar.open')){$('.sidebar').classList.remove('open');$('.mobile-toggle').setAttribute('aria-expanded','false');$('.mobile-toggle').focus();}});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && $('.sidebar.open')) {
+    $('.sidebar').classList.remove('open');
+    $('.mobile-toggle').setAttribute('aria-expanded', 'false');
+    $('.mobile-toggle').focus();
+  }
+});
