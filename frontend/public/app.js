@@ -51,23 +51,23 @@ let reportCurrency = '',
   serverState = null,
   usingSaved = false;
 const routes = {
-  certificates: ['Loan-closure certificates', 'shield'],
+  certificates: ['Proof a loan is repaid', 'shield'],
   workers: ['Workers & families', 'people'],
   prospects: ['Second chance', 'group'],
-  livelihood: ['Loan-use & livelihoods', 'activity'],
+  livelihood: ['Loan-use checks', 'activity'],
   health: ['Household support', 'people'],
   overview: ['Overview', 'dashboard'],
-  followups: ['Follow-up cases', 'clock'],
-  outcomes: ['Outcomes', 'activity'],
-  services: ['Support directory', 'building'],
+  followups: ['Follow-ups', 'clock'],
+  outcomes: ['Progress reports', 'activity'],
+  services: ['Help available', 'building'],
   members: ['Members', 'people'],
   groups: ['Groups', 'group'],
   meetings: ['Field visits', 'calendar'],
-  loans: ['Loan register', 'wallet'],
-  consent: ['Consent & sharing', 'shield'],
+  loans: ['Loans', 'wallet'],
+  consent: ['Permission to share', 'shield'],
   queue: ['Offline records', 'activity'],
   settings: ['Organization', 'settings'],
-  staff: ['Staff accounts', 'people'],
+  staff: ['Team members', 'people'],
 };
 const today = () => new Date().toLocaleDateString('en-CA', { timeZone: state?.config?.timeZone || 'Asia/Kolkata' });
 const currency = () =>
@@ -126,10 +126,10 @@ function reasons(m) {
     i.conflicts > 0 && 'Attendance observations disagree on the same date',
     i.visits < 4 && 'Fewer than four recorded visits',
     i.attendance !== null && i.attendance < 80 && 'Attendance below 80%',
-    i.repayment !== null && i.repayment < 90 && 'Full scheduled payments below 90%',
-    i.surplus <= 0 && 'No reported household surplus',
-    i.utilisation === 'follow-up' && 'Loan utilisation needs follow-up',
-    !m.kycVerified && 'Identity verification pending',
+    i.repayment !== null && i.repayment < 90 && 'Fewer than 90% of recorded payments were paid in full',
+    i.surplus <= 0 && 'Reported spending uses all household income',
+    i.utilisation === 'follow-up' && 'Check how the loan was used',
+    !m.kycVerified && 'ID check still needed',
   ].filter(Boolean);
 }
 function outstanding(l) {
@@ -183,11 +183,11 @@ async function api(path, method = 'GET', body) {
         method,
         body,
         {
-          '/health/checkins': 'Household check-in',
+          '/health/checkins': 'Check in with a family',
           '/health/plans': 'Support plan',
-          '/health/cashflow': 'Expected cash flow',
-          '/health/scenarios': 'Cash-flow scenario',
-        }[path] || (path.startsWith('/support/') ? 'Support record' : 'Support update')
+          '/health/cashflow': 'Planned money in and out',
+          '/health/scenarios': 'Saved money plan',
+        }[path] || (path.startsWith('/support/') ? 'Person’s record' : 'Support update')
       );
     if (navigator.onLine) setTimeout(() => sync().catch(e => toast('Saved on device. ' + e.message)), 500);
     return body;
@@ -228,7 +228,7 @@ function offlineLogin() {
   }
   $('#app').classList.remove('workspace-shell');
   $('#app').innerHTML =
-    `<div class="login offline-login"><section class="login-form"><div class="login-card"><div class="eyebrow">FieldLedger · Saved on this device</div><h1>Ready for the field.</h1><p>Unlock your encrypted workspace. You can work here even when the server is unavailable.</p><form id="offline-unlock"><label class="field">Workspace<select name="owner">${profiles.map(p => `<option value="${esc(p.owner)}">${esc(p.label)}</option>`).join('')}</select></label><label class="field">Device passphrase<input name="password" type="password" required minlength="12" autocomplete="off"></label><button class="btn">Unlock workspace</button><p class="form-error" role="alert"></p></form><button class="text-btn" id="online-signin">Sign in online</button><p class="field-help">The passphrase stays on this device. Sign in online at least every 7 days to renew offline capture.</p></div></section></div>`;
+    `<div class="login offline-login"><section class="login-form"><div class="login-card"><div class="eyebrow">FieldLedger · Saved on this device</div><h1>Ready for the field.</h1><p>Enter your device password to open saved records. You can work without internet.</p><form id="offline-unlock"><label class="field">Team records<select name="owner">${profiles.map(p => `<option value="${esc(p.owner)}">${esc(p.label)}</option>`).join('')}</select></label><label class="field">Device password<input name="password" type="password" required minlength="12" autocomplete="off"></label><button class="btn">Open saved records</button><p class="form-error" role="alert"></p></form><button class="text-btn" id="online-signin">Sign in online</button><p class="field-help">This password stays on your device. Connect and sign in at least once every 7 days to keep adding records offline.</p></div></section></div>`;
   $('#offline-unlock').onsubmit = async e => {
     e.preventDefault();
     const form = e.currentTarget,
@@ -238,7 +238,7 @@ function offlineLogin() {
       const input = new FormData(form),
         vault = new OfflineVault(input.get('owner'));
       await vault.unlock(input.get('password'));
-      if (!vault.workspace) throw new Error('No saved workspace. Sign in online and prepare this device first.');
+      if (!vault.workspace) throw new Error('No records are saved here yet. Connect, sign in and open Offline records to set up this device.');
       operationsUI.adoptVault(vault);
       serverState = vault.workspace;
       pending = vault.records;
@@ -274,9 +274,9 @@ function login() {
       <section class="login-art">
         <div class="brand"><span class="brandmark">${icon('leaf')}</span>FieldLedger</div>
         <div>
-          <div class="eyebrow">A working record for your community</div>
-          <h1>Good fieldwork.<br>A record to match.</h1>
-          <p>Pay, debt and practical support, recorded with care. A shared workspace for your field team.</p>
+          <div class="eyebrow">Records for your field team</div>
+          <h1>Keep records.<br>Follow up with care.</h1>
+          <p>Record pay, loans and help given. See who needs a follow-up, even when you work without internet.</p>
           <div class="ledger-art" aria-hidden="true">
             <div class="ledger-art-head"><span>No.</span><span>Field register</span><span>Record</span></div>
             <div class="ledger-art-row"><span>01</span><strong>Group meeting</strong><span>${icon('check')}Logged</span></div>
@@ -290,13 +290,13 @@ function login() {
         <div class="login-card">
           <div class="eyebrow">FieldLedger workspace</div>
           <h2>${session?.demo !== false ? 'Take a look around.' : 'Welcome back.'}</h2>
-          <p>${session?.demo !== false ? 'Explore Indian worker support, pay and debt records, and community finance workflows.' : 'Sign in to your organization’s field records.'}</p>
+          <p>${session?.demo !== false ? 'Try the app with made-up people and records. Nothing here is a real loan or payment.' : 'Sign in to your organization’s field records.'}</p>
           <form id="login-form">
             ${
               session?.demo !== false
                 ? `
-              <button class="btn" type="submit">Open demo workspace ${icon('arrow')}</button>
-              <p class="field-help">Fictional members and transactions. No account needed.</p>
+              <button class="btn" type="submit">Try the demo ${icon('arrow')}</button>
+              <p class="field-help">Made-up people and payments. No account needed.</p>
             `
                 : `
               <label class="field">Username<input name="username" value="admin" autocomplete="username" required></label><label class="field">Password<input type="password" name="password" autocomplete="current-password" required></label>
@@ -306,7 +306,7 @@ function login() {
             <div class="form-error" role="alert"></div>
           </form>
           ${session?.demo !== false ? `<details class="staff-signin"><summary>Sign in with a staff account</summary><form id="staff-signin"><label class="field">Username<input name="username" autocomplete="username" required></label><label class="field">Password<input name="password" type="password" autocomplete="current-password" required></label><button class="btn">Sign in</button><div class="form-error" role="alert"></div></form></details>` : ''}
-          <div class="explain"><strong>Hosted by you. Kept by you.</strong><br>Free, open-source software for your NGO’s own server.</div>
+          <div class="explain"><strong>Your organisation keeps the records.</strong><br>Free software your NGO can run on its own server.</div>
         </div>
       </section>
     </div>`;
@@ -352,11 +352,11 @@ function render() {
       <nav class="nav" aria-label="Main navigation">
         <div class="nav-primary">${['workers', 'prospects', 'livelihood', 'followups', 'meetings'].map(navButton).join('')}</div>
         ${navGroup('Community', ['health', 'overview', 'outcomes', 'members', 'groups', 'services'])}
-        ${navGroup('Lending & sharing', ['loans', 'certificates', 'consent'])}
+        ${navGroup('Loans & sharing', ['loans', 'certificates', 'consent'])}
         ${navGroup('Workspace', ['queue', 'settings', 'staff'])}
       </nav>
       <div class="sidebar-bottom">
-        <div class="ownership">${icon('shield')} Self-hosted workspace</div>
+        <div class="ownership">${icon('shield')} Your organisation’s own records</div>
         <div class="user">
           <div class="avatar">${initials(state.user.name)}</div>
           <div><strong>${esc(state.user.name)}</strong><small>${esc(state.user.role === 'officer' ? 'Field officer' : state.user.role === 'supervisor' ? 'Supervisor' : 'Administrator')}</small></div>
@@ -374,13 +374,13 @@ function render() {
         <div class="top-actions">
           <span class="status"><i class="dot ${usingSaved ? 'off' : ''}"></i>${usingSaved ? 'Saved workspace' : pending.length ? pending.length + ' pending' : 'Connected'}</span>
           <span class="date-label">${new Date().toLocaleDateString(activeLanguage(state), { weekday: 'short', day: 'numeric', month: 'short' })}</span>
-          <button class="icon-btn" data-action="sync" aria-label="Sync pending records" title="Sync pending records">${icon('activity')}</button>
+          <button class="icon-btn" data-action="sync" aria-label="Send saved changes" title="Send saved changes">${icon('activity')}</button>
         </div>
       </header>
       <div class="content">
-        ${operationsUI.unlocked() ? `<div class="offline-banner"><span><strong>Device workspace unlocked</strong> · ${pending.length} pending${pending.length ? ' · Provisional records appear below until synced.' : ''}${!offlineAccessValid(serverState) ? ' · Capture expired: sign in online to renew.' : ''}</span>${usingSaved ? '<button class="text-btn" data-action="reconnect">Connect / sign in</button>' : ''}<button class="text-btn" data-action="lock-workspace">Lock workspace</button></div>` : `<div class="offline-banner"><span>Prepare this device before leaving your connection.</span><button class="text-btn" data-nav="queue">Set up offline access</button></div>`}${state.demo ? `<div class="demo-banner"><span><strong>Demo</strong> Sample records. No real member data.</span><small>${esc(state.settings.country)} · ${esc(state.settings.currency)}</small></div>` : ''}
+        ${operationsUI.unlocked() ? `<div class="offline-banner"><span><strong>Saved records unlocked</strong> · ${pending.length} pending${pending.length ? ' · These changes are saved here but have not reached your team yet.' : ''}${!offlineAccessValid(serverState) ? ' · Connect and sign in before adding more records.' : ''}</span>${usingSaved ? '<button class="text-btn" data-action="reconnect">Connect / sign in</button>' : ''}<button class="text-btn" data-action="lock-workspace">Lock workspace</button></div>` : `<div class="offline-banner"><span>Going somewhere without internet? Save your records on this device first.</span><button class="text-btn" data-nav="queue">Set up offline records</button></div>`}${state.demo ? `<div class="demo-banner"><span><strong>Demo</strong> Made-up records. No real people’s data.</span><small>${esc(state.settings.country)} · ${esc(state.settings.currency)}</small></div>` : ''}
         ${({ overview: overview, members: membersPage, groups: groupsPage, meetings: meetingsPage, loans: loansPage, consent: consentPage, settings: settingsPage }[page] || operationsUI.pages[page] || householdUI.pages[page] || supportUI.pages[page] || (page === 'certificates' ? certificateUI.page : null))()}
-        <footer class="footer"><span><span class="footer-brand">FieldLedger</span> / Community finance records</span><span>${state.demo ? 'Demo workspace' : 'Private workspace'} · Open source</span></footer>
+        <footer class="footer"><span><span class="footer-brand">FieldLedger</span> / Team records</span><span>${state.demo ? 'Demo workspace' : 'Private workspace'} · Open source</span></footer>
       </div>
     </main>`;
   bindSearch();
@@ -422,7 +422,7 @@ function overview() {
   const identity = reviews.filter(m => !m.kycVerified).length;
   const utilisation = reviews.filter(m => ind(m).utilisation === 'follow-up').length;
   const other = reviews.filter(m =>
-    reasons(m).some(r => !['Identity verification pending', 'Loan utilisation needs follow-up'].includes(r))
+    reasons(m).some(r => !['ID check still needed', 'Check how the loan was used'].includes(r))
   ).length;
   const followupDetails = [
     identity && `${identity} pending identity check${identity === 1 ? '' : 's'}`,
@@ -439,7 +439,7 @@ function overview() {
       select('Reporting currency', 'reportCurrency', currencyOptions(currency())) + button('Record a visit', 'visit')
     ) +
     `
-    <div class="quick-actions" aria-label="Quick actions"><span>Quick actions</span>${button('Add member', 'member', 'people', true)}${button('Group meetings', 'open-meetings', 'calendar', true)}${button('Follow-up cases', 'open-followups', 'clock', true)}<small>Financial totals in ${currency()}</small></div>
+    <div class="quick-actions" aria-label="Quick actions"><span>Quick actions</span>${button('Add member', 'member', 'people', true)}${button('Group meetings', 'open-meetings', 'calendar', true)}${button('Follow-ups', 'open-followups', 'clock', true)}<small>Financial totals in ${currency()}</small></div>
     <div class="stats">
       ${stat('Members', state.members.length, `In ${state.groups.length} community groups`, '01')}
       ${stat('Outstanding principal', money(inCurrency(state.loans).reduce((n, l) => n + outstanding(l), 0)), `${inCurrency(state.loans).filter(l => outstanding(l) > 0).length} loans with a balance`, '02')}
@@ -601,10 +601,10 @@ function meetingsPage() {
     heading(
       'Field operations',
       'Field visits',
-      'Record attendance, collections, and loan utilisation checks.',
+      'Record attendance, collections, and loan loan-use checks.',
       button('Record a visit', 'visit')
     ) +
-    `${pending.length ? `<div class="review-strip">${icon('clock')}<span><strong>${pending.length} records waiting to sync.</strong> Saved on this device. Keep this browser’s data until they are synced.</span><button class="text-btn" data-action="sync">Sync now ${icon('arrow')}</button></div>` : ''}<div class="split"><section class="panel"><div class="panel-header"><h2>Group meetings</h2></div><div style="padding-top:15px">${state.groups.map(g => meetingRow(g, true)).join('') || '<div class="empty">No groups yet.</div>'}</div></section><section class="panel"><div class="panel-header"><h2>Recent observations</h2><span class="pill">${state.visits.length} records</span></div><div class="panel-body">${
+    `${pending.length ? `<div class="review-strip">${icon('clock')}<span><strong>${pending.length} records waiting to sync.</strong> Saved on this device. Keep this browser’s data until they are synced.</span><button class="text-btn" data-action="sync">Send saved changes ${icon('arrow')}</button></div>` : ''}<div class="split"><section class="panel"><div class="panel-header"><h2>Group meetings</h2></div><div style="padding-top:15px">${state.groups.map(g => meetingRow(g, true)).join('') || '<div class="empty">No groups yet.</div>'}</div></section><section class="panel"><div class="panel-header"><h2>Recent observations</h2><span class="pill">${state.visits.length} records</span></div><div class="panel-body">${
       state.visits
         .slice()
         .sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt))
@@ -614,34 +614,34 @@ function meetingsPage() {
             `<div class="visit-item"><div><strong>${esc(state.members.find(m => m.id === v.memberId)?.name || v.memberId)}</strong><small>${fmtDate(v.date)} · ${esc(v.attendance)} · ${esc(v.officer)}</small>${v.note ? `<small class="visit-note">${esc(v.note)}</small>` : ''}</div><div>${money(v.paid, v.currency)} repaid<small>${money(v.savings, v.currency)} saved</small></div></div>`
         )
         .join('') || '<div class="empty">No field visits recorded yet.</div>'
-    }</div></section></div><div class="explain" style="margin-top:24px"><strong>Offline capture</strong><br>The app shell works offline after the first visit. Demo records are cached on this device. Offline observations are queued locally and sent to the server when you reconnect; a valid login is required to sync. Real workspaces require an open session to prepare offline capture. This prototype does not encrypt device storage.</div>`
+    }</div></section></div><div class="explain" style="margin-top:24px"><strong>Working without internet</strong><br>The app shell works offline after the first visit. Demo records are cached on this device. Visits are saved on this device until you connect and sign in to send them. Sign in while connected before setting up this device. Saved records on this device are password-protected once you set up Offline records.</div>`
   );
 }
 function loansPage() {
   return (
     heading(
       'Lending records',
-      'Loan register',
-      'Record loans approved by your organization and track principal repayments.',
+      'Loans',
+      'Add an already-approved loan, then record repayments and see what is left to pay.',
       button('Record a loan', 'loan')
     ) +
-    `<div class="explain" style="margin-bottom:23px">This MVP tracks principal-only, interest-free loans. It does not disburse money, calculate interest, or approve credit. Schedules calculate amounts due from installment dates. Visit-based payment percentages remain separate descriptive indicators.</div><section class="panel"><div class="table-wrap"><table><thead><tr><th>Member / loan</th><th>Purpose</th><th>Principal</th><th>Remaining</th><th>Installment</th><th>Status</th></tr></thead><tbody>${state.loans.map(l => `<tr><td><button class="text-btn" data-action="profile" data-id="${l.memberId}">${esc(state.members.find(m => m.id === l.memberId)?.name)}</button><div class="field-help">${l.id}</div></td><td>${esc(l.purpose)}</td><td>${money(l.principal, l.currency)}</td><td>${money(outstanding(l), l.currency)}</td><td>${money(l.installment, l.currency)} / ${esc(l.frequency)}</td><td><span class="badge ${outstanding(l) ? '' : 'gray'}">${outstanding(l) ? 'Active' : 'Repaid'}</span></td></tr>`).join('')}</tbody></table>${!state.loans.length ? '<div class="empty">No loans recorded yet.</div>' : ''}</div></section>`
+    `<div class="explain" style="margin-bottom:23px">Record loans your organisation has already approved. These loans have no interest or fees. The app shows repayment dates and amounts; it does not approve loans or send money. Visit summaries show what was recorded at each visit.</div><section class="panel"><div class="table-wrap"><table><thead><tr><th>Member / loan</th><th>Purpose</th><th>Amount borrowed</th><th>Remaining</th><th>Repayment</th><th>Status</th></tr></thead><tbody>${state.loans.map(l => `<tr><td><button class="text-btn" data-action="profile" data-id="${l.memberId}">${esc(state.members.find(m => m.id === l.memberId)?.name)}</button><div class="field-help">${l.id}</div></td><td>${esc(l.purpose)}</td><td>${money(l.principal, l.currency)}</td><td>${money(outstanding(l), l.currency)}</td><td>${money(l.installment, l.currency)} / ${esc(l.frequency)}</td><td><span class="badge ${outstanding(l) ? '' : 'gray'}">${outstanding(l) ? 'Active' : 'Repaid'}</span></td></tr>`).join('')}</tbody></table>${!state.loans.length ? '<div class="empty">No loans recorded yet.</div>' : ''}</div></section>`
   );
 }
 function consentPage() {
   return (
     heading(
-      'Member permissions',
-      'Consent & sharing',
-      'A member’s record is shared only with their explicit, recorded permission.'
+      'Before sharing records',
+      'Permission to share',
+      'Ask the member before sharing their record. Save who they agreed to share it with and why.'
     ) +
-    `<div class="explain" style="margin-bottom:24px">Exports contain named descriptive indicators, the recipient, and the purpose. Sharing permission expires after 30 days. Revocation stops future exports; it cannot recall a copy already downloaded. Exports are not signed credentials.</div><section class="panel"><div class="table-wrap"><table><thead><tr><th>Member</th><th>Permission</th><th>Recipient</th><th>Expires</th><th>Actions</th></tr></thead><tbody>${state.members.map(m => `<tr><td><strong>${esc(m.name)}</strong><div class="field-help">${m.id}</div></td><td><span class="badge ${consentActive(m) ? '' : 'gray'}">${consentActive(m) ? 'Permission recorded' : m.consent?.granted ? 'Expired' : 'Not shared'}</span></td><td>${consentActive(m) ? esc(m.consent.recipient) : '—'}</td><td>${consentActive(m) ? fmtDate(m.consent.expires.slice(0, 10)) : '—'}</td><td><div class="actions">${consentActive(m) ? `<button class="text-btn" data-action="export" data-id="${m.id}">Export ${icon('down')}</button><button class="text-btn" data-action="revoke" data-id="${m.id}">Revoke</button>` : `<button class="text-btn" data-action="consent" data-id="${m.id}">Record permission ${icon('arrow')}</button>`}</div></td></tr>`).join('')}</tbody></table></div></section>`
+    `<div class="explain" style="margin-bottom:24px">Ask the member before sharing. Record who will receive the file and why. Permission lasts 30 days. Withdrawing it stops new downloads, but cannot remove copies already shared. This profile file is not digitally signed proof.</div><section class="panel"><div class="table-wrap"><table><thead><tr><th>Member</th><th>Permission</th><th>Recipient</th><th>Expires</th><th>Actions</th></tr></thead><tbody>${state.members.map(m => `<tr><td><strong>${esc(m.name)}</strong><div class="field-help">${m.id}</div></td><td><span class="badge ${consentActive(m) ? '' : 'gray'}">${consentActive(m) ? 'Permission recorded' : m.consent?.granted ? 'Expired' : 'Not shared'}</span></td><td>${consentActive(m) ? esc(m.consent.recipient) : '—'}</td><td>${consentActive(m) ? fmtDate(m.consent.expires.slice(0, 10)) : '—'}</td><td><div class="actions">${consentActive(m) ? `<button class="text-btn" data-action="export" data-id="${m.id}">Download ${icon('down')}</button><button class="text-btn" data-action="revoke" data-id="${m.id}">Withdraw permission</button>` : `<button class="text-btn" data-action="consent" data-id="${m.id}">Record agreement ${icon('arrow')}</button>`}</div></td></tr>`).join('')}</tbody></table></div></section>`
   );
 }
 function settingsPage() {
   return (
-    heading('Workspace settings', 'Organization', 'Manage your organization’s details and review workspace activity.') +
-    `<div class="settings-grid"><section class="panel"><div class="panel-header"><h2>Workspace preferences</h2></div><form id="settings-form" class="panel-body"><div class="form-grid">${field('Organization name', 'name', 'text', state.settings.name, 'required', true)}${field('Country', 'country', 'text', state.settings.country, 'required')}<label class="field">Default currency<select name="currency">${CURRENCIES.map(c => `<option ${state.settings.currency === c ? 'selected' : ''}>${c}</option>`).join('')}</select></label></div><p class="field-help">Default currency applies to new records only. Existing currencies and amounts stay unchanged. No exchange-rate conversion is performed.</p><div class="form-error" role="alert"></div><div class="form-actions"><button class="btn">Save preferences</button></div></form></section><section class="panel"><div class="panel-header"><h2>Hosting & access</h2></div><div class="panel-body"><div class="explain"><strong>MIT licensed · No subscription fees</strong><br>Node.js 24 + SQLite. No paid API, cloud account or external banking software required. Run on a local server or your own infrastructure.</div><p class="online-note">Prototype access: one administrator role. This release does not implement multi-user permissions, encrypted backups, or a full accounting ledger. Use synthetic data until your deployment has been reviewed for real member information.</p><p class="online-note">Organization-owned records are stored on the server. Consent exports are descriptive JSON files. Field observations are explainable; no member is assigned a credit score.</p></div></section></div><section class="panel" style="margin-top:24px"><div class="panel-header"><h2>Activity trail</h2><span class="pill">Latest 30 events</span></div><div class="panel-body">${
+    heading('Workspace settings', 'Organization', 'Update your organisation’s details, make a backup or see recent changes.') +
+    `<div class="settings-grid"><section class="panel"><div class="panel-header"><h2>Organisation details</h2></div><form id="settings-form" class="panel-body"><div class="form-grid">${field('Organization name', 'name', 'text', state.settings.name, 'required', true)}${field('Country', 'country', 'text', state.settings.country, 'required')}<label class="field">Default currency<select name="currency">${CURRENCIES.map(c => `<option ${state.settings.currency === c ? 'selected' : ''}>${c}</option>`).join('')}</select></label></div><p class="field-help">This currency is used for new records only. Earlier amounts stay in their original currencies. The app does not convert money.</p><div class="form-error" role="alert"></div><div class="form-actions"><button class="btn">Save preferences</button></div></form></section><section class="panel"><div class="panel-header"><h2>Hosting & access</h2></div><div class="panel-body"><div class="explain"><strong>MIT licensed · No subscription fees</strong><br>Node.js 24 + SQLite. No paid API, cloud account or external banking software required. Run on a local server or your own infrastructure.</div><p class="online-note">Administrators manage the app, supervisors review records, and field officers see their assigned groups. Password-protected backups are available. This is not a full accounting system. Review your setup before using real records.</p><p class="online-note">Your organisation keeps records on its own server. A shared profile describes recorded facts; it is not a credit score.</p></div></section></div><section class="panel" style="margin-top:24px"><div class="panel-header"><h2>Recent changes</h2><span class="pill">Latest 30 events</span></div><div class="panel-body">${
       state.audit
         .slice(0, 30)
         .map(
@@ -710,11 +710,11 @@ function memberModal() {
       select('Household currency', 'currency', currencyOptions(state.settings.currency), true) +
         field('Full name', 'name', 'text', '', 'required maxlength="120"') +
         select('Community group', 'groupId', opts(state.groups)) +
-        field('Livelihood / business', 'business', 'text', '', 'required maxlength="120"', true) +
+        field('Type of work or business', 'business', 'text', '', 'required maxlength="120"', true) +
         field('Monthly household income', 'income', 'number', '', 'required min="0" max="100000000" step="0.01"') +
-        field('Monthly household expenses', 'expenses', 'number', '', 'required min="0" max="100000000" step="0.01"') +
+        field('Monthly household spending', 'expenses', 'number', '', 'required min="0" max="100000000" step="0.01"') +
         field('Household members', 'household', 'number', 3, 'required min="1" max="30"') +
-        field('Income earners', 'earners', 'number', 1, 'required min="0" max="30"') +
+        field('People earning money', 'earners', 'number', 1, 'required min="0" max="30"') +
         select(
           'Identity document type',
           'identityType',
@@ -766,7 +766,7 @@ function loanModal(memberId) {
   }
   openModal(
     'Record an approved loan',
-    'Principal-only, interest-free tracking. No funds are disbursed.',
+    'Amount borrowed-only, interest-free tracking. No funds are disbursed.',
     formHtml(
       select('Member', 'memberId', opts(state.members, 'id', 'name', memberId), true) +
         select(
@@ -776,8 +776,8 @@ function loanModal(memberId) {
           true
         ) +
         field('Loan purpose', 'purpose', 'text', '', 'required maxlength="120"', true) +
-        field('Principal amount', 'principal', 'number', '', 'required min="1" max="100000000" step="0.01"') +
-        field('Installment amount', 'installment', 'number', '', 'required min="1" max="100000000" step="0.01"') +
+        field('Amount borrowed amount', 'principal', 'number', '', 'required min="1" max="100000000" step="0.01"') +
+        field('Repayment amount', 'installment', 'number', '', 'required min="1" max="100000000" step="0.01"') +
         select(
           'Repayment frequency',
           'frequency',
@@ -817,10 +817,10 @@ function visitModal(groupId, memberId) {
           '<option value="present">Present</option><option value="absent">Absent</option><option value="excused">Excused absence</option><option value="not-recorded">Not recorded</option>'
         ) +
         select('Loan being repaid', 'loanId', '<option value="">No loan payment</option>') +
-        field('Principal repayment received', 'paid', 'number', 0, 'required min="0" step="0.01" max="100000000"') +
+        field('Amount borrowed repayment received', 'paid', 'number', 0, 'required min="0" step="0.01" max="100000000"') +
         field('Savings contributed', 'savings', 'number', 0, 'required min="0" step="0.01" max="100000000"') +
         select(
-          'Loan utilisation check',
+          'Loan loan-use check',
           'utilisation',
           '<option value="not-checked">Not checked this visit</option><option value="verified">Purpose verified in person</option><option value="follow-up">Support / follow-up needed</option>',
           true
@@ -870,7 +870,7 @@ function profile(id) {
   openModal(
     `<span data-no-translate>${esc(m.name)}</span>`,
     `${m.id} · ${esc(groupName(m.groupId))}`,
-    `<div class="profile-title"><div class="avatar">${initials(m.name)}</div><div><strong data-no-translate>${esc(m.business)}</strong><p class="subtitle">Member since ${fmtDate(m.joined)} · ${m.kycVerified ? 'Identity check attested' : 'Identity verification pending'}</p></div></div><div class="profile-stats"><div class="profile-stat"><small>Attendance</small><b>${pct(i.attendance)}</b><p>${i.attPresent} present / ${i.attTotal} observations</p></div><div class="profile-stat"><small>Full payments</small><b>${pct(i.repayment)}</b><p>${i.repFull} fully paid / ${i.repTotal} recorded dues</p></div><div class="profile-stat"><small>Contributions</small><b>${moneySummary(i.savingsByCurrency, m.currency)}</b><p>Total savings recorded</p></div></div>${rs.length ? `<div class="explain"><strong>Items to review</strong><br>${rs.map(esc).join('<br>')}</div>` : '<div class="explain">No follow-up flags in the recorded observations. This is not a loan approval or credit recommendation.</div>'}<h3 class="section-title">Household cash flow · self-reported monthly</h3><div class="kv"><div><small>Income</small>${money(m.income, m.currency)}</div><div><small>Expenses</small>${money(m.expenses, m.currency)}</div><div><small>Surplus before loan payments</small>${money(i.surplus, m.currency)}</div><div><small>Household / earners</small>${m.household} people / ${m.earners} earners</div><div><small>Document · last four only</small>${esc(m.identityType)} · •••• ${esc(m.identitySuffix)}</div><div><small>Latest utilisation check</small>${esc(i.utilisation.replaceAll('-', ' '))}</div></div><p class="field-help">Follow-up thresholds: attendance below 80%, full recorded payments below 90%, fewer than 4 visits, no surplus, pending identity, or utilisation follow-up. Missing data is unknown. No composite score or automatic credit decision.</p><div class="actions" style="flex-wrap:wrap;margin:20px 0">${button('Record visit', 'visit', 'plus', false, `data-id="${m.id}"`)}${button('Add loan', 'loan', 'wallet', true, `data-id="${m.id}"`)}${!m.kycVerified ? button('Attest ID check', 'verify', 'check', true, `data-id="${m.id}"`) : ''}${button(consentActive(m) ? 'Export profile' : 'Sharing permission', consentActive(m) ? 'export' : 'consent', consentActive(m) ? 'down' : 'shield', true, `data-id="${m.id}"`)}</div><h3 class="section-title">Recent field history</h3>${
+    `<div class="profile-title"><div class="avatar">${initials(m.name)}</div><div><strong data-no-translate>${esc(m.business)}</strong><p class="subtitle">Member since ${fmtDate(m.joined)} · ${m.kycVerified ? 'Staff recorded an ID check' : 'ID check still needed'}</p></div></div><div class="profile-stats"><div class="profile-stat"><small>Attendance</small><b>${pct(i.attendance)}</b><p>${i.attPresent} present / ${i.attTotal} observations</p></div><div class="profile-stat"><small>Full payments</small><b>${pct(i.repayment)}</b><p>${i.repFull} fully paid / ${i.repTotal} recorded dues</p></div><div class="profile-stat"><small>Contributions</small><b>${moneySummary(i.savingsByCurrency, m.currency)}</b><p>Total savings recorded</p></div></div>${rs.length ? `<div class="explain"><strong>Items to review</strong><br>${rs.map(esc).join('<br>')}</div>` : '<div class="explain">No reminders in these records. This does not mean a loan should be approved.</div>'}<h3 class="section-title">Monthly money in and out, as reported by the family</h3><div class="kv"><div><small>Income</small>${money(m.income, m.currency)}</div><div><small>Expenses</small>${money(m.expenses, m.currency)}</div><div><small>Money left before loan repayments</small>${money(i.surplus, m.currency)}</div><div><small>Household / earners</small>${m.household} people / ${m.earners} earners</div><div><small>Document · last four only</small>${esc(m.identityType)} · •••• ${esc(m.identitySuffix)}</div><div><small>Latest loan-use check</small>${esc(i.utilisation.replaceAll('-', ' '))}</div></div><p class="field-help">A reminder appears for attendance below 80%, full payments below 90%, fewer than 4 visits, no money left after spending, an unchecked ID or a loan-use concern. Missing information stays unknown. The app does not rate members or decide who gets a loan.</p><div class="actions" style="flex-wrap:wrap;margin:20px 0">${button('Record visit', 'visit', 'plus', false, `data-id="${m.id}"`)}${button('Add loan', 'loan', 'wallet', true, `data-id="${m.id}"`)}${!m.kycVerified ? button('Record an ID check', 'verify', 'check', true, `data-id="${m.id}"`) : ''}${button(consentActive(m) ? 'Download profile' : 'Sharing permission', consentActive(m) ? 'export' : 'consent', consentActive(m) ? 'down' : 'shield', true, `data-id="${m.id}"`)}</div><h3 class="section-title">Recent field history</h3>${
       visitsFor(id)
         .slice()
         .sort((a, b) => b.date.localeCompare(a.date))
@@ -891,7 +891,7 @@ function consentModal(id) {
     formHtml(
       field('Named recipient / organization', 'recipient', 'text', '', 'required maxlength="120"', true) +
         field('Purpose of sharing', 'purpose', 'text', '', 'required maxlength="120"', true),
-      'Record permission',
+      'Record agreement',
       `<div class="explain" style="margin-top:20px">This permits a named profile export with attendance, repayment, savings and household surplus indicators. Valid for 30 days. It does not permit wider sharing. A downloaded copy cannot be recalled.</div><label class="check" style="margin-top:18px"><input type="checkbox" name="attested" required><span>I explained the recipient, purpose, included information, expiry and revocation limits in a language the member understands. The member explicitly agreed.</span></label>`
     )
   );
@@ -961,16 +961,16 @@ document.addEventListener('click', async e => {
         break;
       case 'verify':
         openModal(
-          'Attest identity verification',
-          'This records an officer’s check; it does not verify a document automatically.',
+          'Record an ID check',
+          'Record the ID check you did yourself. The app does not check the document for you.',
           formHtml(
-            '<label class="check field wide"><input type="checkbox" required><span>I checked an accepted identity document in person and confirmed it belongs to this member.</span></label>',
-            'Record attestation'
+            '<label class="check field wide"><input type="checkbox" required><span>I saw an accepted ID document in person and checked that it belongs to this member.</span></label>',
+            'Save ID check'
           )
         );
         handleForm(async () => {
           await api(`/members/${id}/verify`, 'POST', {});
-          toast('Identity check attested.');
+          toast('ID check recorded.');
         });
         break;
       case 'export': {
@@ -981,7 +981,7 @@ document.addEventListener('click', async e => {
         a.download = `fieldledger-${id}.json`;
         a.click();
         setTimeout(() => URL.revokeObjectURL(url), 1000);
-        toast('Profile exported for the permitted recipient.');
+        toast('Profile downloaded for the agreed person or organisation.');
         await refresh();
         break;
       }
@@ -989,7 +989,7 @@ document.addEventListener('click', async e => {
         await api(`/members/${id}/consent`, 'POST', { granted: false });
         await refresh();
         render();
-        toast('Permission revoked. Future exports are blocked; downloaded copies cannot be recalled.');
+        toast('Permission withdrawn. No new profile files can be downloaded. Copies already shared cannot be removed.');
         break;
       case 'sync':
         await sync();
@@ -1085,7 +1085,7 @@ async function init() {
     } else login();
   } catch (e) {
     $('#app').innerHTML =
-      '<div class="loading">No saved workspace on this device<span>Connect to FieldLedger once, sign in and set up offline access.</span></div>';
+      '<div class="loading">No saved records on this device<span>Connect to FieldLedger, sign in, then open Offline records to save a copy on this device.</span></div>';
   }
 }
 const operationsUI = createOperationsUI({

@@ -28,17 +28,28 @@ export const SUPPORT_ROUTES = {
 };
 export function displaySupportValue(value) {
   const labels = {
-    'domestic-worker': 'Work and advance debt in India',
-    'overseas-worker': 'Indian overseas worker / family',
+    'domestic-worker': 'Worker in India',
+    'overseas-worker': 'Indian worker abroad / family',
     'not-recorded': 'Not recorded',
     'not-working': 'Not working',
     'partly-working': 'Partly working',
     'not-seen': 'Not seen',
     'in-progress': 'In progress',
     'not-started': 'Not started',
-    'awaiting-information': 'Awaiting information',
-    'accepted-externally': 'Accepted outside FieldLedger',
+    'awaiting-information': 'More details needed',
+    'accepted-externally': 'Accepted by the lender',
     'not-accepted': 'Not accepted',
+    resolved: 'Closed',
+    recruitment: 'Money borrowed to get a job',
+    advance: 'Money borrowed in advance',
+    repayment: 'Money repaid',
+    unknown: 'Not known',
+    agreed: 'Worker agrees',
+    disputed: 'Worker disagrees',
+    reviewed: 'Reviewed by staff',
+    withdrawn: 'Withdrawn from review',
+    prospective: 'Waiting for a loan review',
+    livelihood: 'Work or business',
   };
   return labels[value] || String(value).replace(/^\w/, character => character.toUpperCase());
 }
@@ -105,8 +116,8 @@ export function payFlags(s, asOf) {
         position,
         reason:
           position.received === null
-            ? `Pay receipt is unconfirmed, ${daysLate} days after the expected date. This does not establish non-payment.`
-            : `Expected take-home pay remains short by ${position.shortfall} ${p.currency}, ${daysLate} days after the expected date.`,
+            ? `Pay has not been confirmed, ${daysLate} days after it was due. Ask the worker or family; this does not mean they were not paid.`
+            : `Pay is still ${position.shortfall} ${p.currency} short, ${daysLate} days after it was due.`,
       });
     }
     if (
@@ -123,7 +134,7 @@ export function payFlags(s, asOf) {
         currency: p.currency,
         policy: { ...policy },
         position,
-        reason: `Recorded receipts are ${((position.shortfall / p.expected) * 100).toFixed(1)}% below expected take-home pay; threshold ${policy.shortPercent}%.`,
+        reason: `Recorded pay is ${((position.shortfall / p.expected) * 100).toFixed(1)}% less than expected. Your reminder is set to ${policy.shortPercent}%.`,
       });
     }
   }

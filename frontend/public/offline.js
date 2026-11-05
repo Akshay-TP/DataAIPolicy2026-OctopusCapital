@@ -19,7 +19,7 @@ function store() {
     request.onupgradeneeded = () => request.result.createObjectStore('vaults');
     request.onsuccess = () => resolve(request.result);
     request.onerror = () =>
-      reject(new Error('Encrypted browser storage is unavailable. Enable browser storage and retry.'));
+      reject(new Error('The browser cannot save protected records. Allow browser storage, then try again.'));
   }).catch(error => {
     connection = null;
     throw error;
@@ -86,12 +86,12 @@ export class OfflineVault {
       const data = JSON.parse(localStorage.getItem(this.storageKey) || 'null');
       return { count: data?.count || 0, hasWorkspace: !!data?.hasWorkspace, savedAt: data?.savedAt, locked: !this.key };
     } catch {
-      throw new Error('Offline metadata is unreadable. Keep the browser data for recovery.');
+      throw new Error('The app cannot read details of the saved records. Do not clear this browser’s data; ask your administrator for help.');
     }
   }
 
   async unlock(password) {
-    if (password.length < 12) throw new Error('Use at least 12 characters for the device passphrase.');
+    if (password.length < 12) throw new Error('Use at least 12 characters for the device password.');
     await this.writing;
     this.lock();
     const generation = this.generation;
@@ -100,7 +100,7 @@ export class OfflineVault {
     try {
       legacy = JSON.parse(localStorage.getItem(this.storageKey) || 'null');
     } catch {
-      if (!stored) throw new Error('Earlier offline storage is unreadable. Keep the browser data for recovery.');
+      if (!stored) throw new Error('The app cannot read the earlier saved records. Do not clear this browser’s data; ask your administrator for help.');
     }
     const data = stored || (legacy?.data ? legacy : null);
     const salt = data ? bytes(data.salt) : crypto.getRandomValues(new Uint8Array(16));
@@ -124,7 +124,7 @@ export class OfflineVault {
         pack = Array.isArray(parsed) ? { records: parsed, workspace: null } : parsed;
         if (!Array.isArray(pack.records)) throw new Error('Invalid records');
       } catch {
-        throw new Error('Unable to unlock. Check the device passphrase; records have not been changed.');
+        throw new Error('Unable to unlock. Check the device password; records have not been changed.');
       }
     }
     if (generation !== this.generation) throw new Error('Workspace locked while unlocking. Try again when ready.');

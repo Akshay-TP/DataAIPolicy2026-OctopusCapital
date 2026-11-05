@@ -74,7 +74,7 @@ export function createOperationsUI(ctx) {
         .querySelectorAll('[data-action="group"],[data-action="loan"],[data-action="export"]')
         .forEach(el => el.remove());
     if (page === 'members' && supervisor())
-      $('.page-heading .actions').insertAdjacentHTML('afterbegin', button('Import CSV', 'import', 'down', true));
+      $('.page-heading .actions').insertAdjacentHTML('afterbegin', button('Upload spreadsheet', 'import', 'down', true));
     if (page === 'groups')
       document
         .querySelectorAll('.group-card')
@@ -105,7 +105,7 @@ export function createOperationsUI(ctx) {
       const note = $('.content>.explain');
       if (note)
         note.innerHTML =
-          '<strong>Offline capture</strong><br>Unlock Offline records with a device passphrase before working without a connection. Pending visits are encrypted on this device. Reconnect and sign in to sync. Keep the passphrase: it cannot be recovered.';
+          '<strong>Working without internet</strong><br>Open Offline records and choose a device password before working without internet. Saved visits are protected on this device. Connect and sign in to send them to your team. Keep the password safe: it cannot be recovered.';
     }
     if (page === 'loans')
       document
@@ -216,7 +216,7 @@ export function createOperationsUI(ctx) {
     openModal(
       'Group meeting',
       esc(group.name) + ' · Select the members you observed.',
-      `<form id="meeting-form"><label class="field">Meeting date<input type="date" name="date" value="${ctx.today()}" max="${ctx.today()}" required></label><p class="field-help">Only checked rows are saved. Enter amounts actually received. All online rows save together.</p><div class="table-wrap"><table><thead><tr><th>Include / member</th><th>Attendance</th><th>Loan</th><th>Currency</th><th>Repaid</th><th>Saved</th></tr></thead><tbody>${members
+      `<form id="meeting-form"><label class="field">Meeting date<input type="date" name="date" value="${ctx.today()}" max="${ctx.today()}" required></label><p class="field-help">Tick the people whose records you want to save. Enter money actually received. When connected, the selected rows are saved together.</p><div class="table-wrap"><table><thead><tr><th>Include / member</th><th>Attendance</th><th>Loan</th><th>Currency</th><th>Repaid</th><th>Saved</th></tr></thead><tbody>${members
         .map(m => {
           const loans = state().loans.filter(l => l.memberId === m.id && ctx.outstanding(l) > 0);
           return `<tr data-member="${m.id}" data-visit="${crypto.randomUUID()}"><td><label class="check"><input type="checkbox" name="included"><span data-no-translate>${esc(m.name)}</span></label></td><td><select name="attendance" aria-label="Attendance for ${esc(m.name)}"><option value="present">Present</option><option value="absent">Absent</option><option value="excused">Excused</option></select></td><td><select name="loanId" aria-label="Loan for ${esc(m.name)}"><option value="">No payment</option>${loans.map(l => `<option value="${l.id}">${l.currency} · ${l.id}</option>`).join('')}</select></td><td><select name="currency" aria-label="Currency for ${esc(m.name)}">${ctx.currencyOptions(m.currency || state().settings.currency)}</select></td><td><input name="paid" aria-label="Repayment for ${esc(m.name)}" type="number" min="0" step="0.01" value="0"></td><td><input name="savings" aria-label="Savings for ${esc(m.name)}" type="number" min="0" step="0.01" value="0"></td></tr>`;
@@ -289,7 +289,7 @@ export function createOperationsUI(ctx) {
     openModal(
       'Collection receipt',
       `${esc(r.number)} · Version ${r.version}`,
-      `<div class="receipt-sheet"><div class="receipt-brand">FieldLedger / ${esc(r.organization)}</div><h3>Collection receipt</h3><p><span data-no-translate>${esc(r.member.name)}</span> · ${esc(r.member.id)}</p><p>${esc(r.date)} · Recorded by ${esc(r.officer)}</p><div class="receipt-lines"><div>Principal repayment <strong>${money(r.paid, r.currency)}</strong></div><div>Savings contribution <strong>${money(r.savings, r.currency)}</strong></div><div class="receipt-total">Total received <strong>${money(r.total, r.currency)}</strong></div>${r.loanId ? `<div>Loan balance on this date <strong>${money(r.loanBalanceOnDate, r.currency)}</strong></div>` : ''}</div><p class="field-help">Receipt ${esc(r.number)} / revision ${r.version}${r.corrected ? ' · Corrected record: this version supersedes earlier receipts.' : ''}</p><p class="field-help">Currency: ${esc(r.currency)}. Savings are recorded contributions, not a deposit-account balance.</p></div><div class="form-actions"><button class="btn" data-action="print">Print receipt</button></div>`
+      `<div class="receipt-sheet"><div class="receipt-brand">FieldLedger / ${esc(r.organization)}</div><h3>Collection receipt</h3><p><span data-no-translate>${esc(r.member.name)}</span> · ${esc(r.member.id)}</p><p>${esc(r.date)} · Recorded by ${esc(r.officer)}</p><div class="receipt-lines"><div>Amount borrowed repayment <strong>${money(r.paid, r.currency)}</strong></div><div>Savings contribution <strong>${money(r.savings, r.currency)}</strong></div><div class="receipt-total">Total received <strong>${money(r.total, r.currency)}</strong></div>${r.loanId ? `<div>Loan balance on this date <strong>${money(r.loanBalanceOnDate, r.currency)}</strong></div>` : ''}</div><p class="field-help">Receipt ${esc(r.number)} / revision ${r.version}${r.corrected ? ' · This corrected receipt replaces earlier versions.' : ''}</p><p class="field-help">Currency: ${esc(r.currency)}. Savings are recorded contributions, not a deposit-account balance.</p></div><div class="form-actions"><button class="btn" data-action="print">Print receipt</button></div>`
     );
     $('#dialog').classList.add('printable');
   }
@@ -297,7 +297,7 @@ export function createOperationsUI(ctx) {
     const data = await api(`/loans/${id}/schedule`);
     openModal(
       'Repayment schedule',
-      `${id} · Principal only, interest free`,
+      `${id} · Amount borrowed only, interest free`,
       `<div class="profile-stats"><div class="profile-stat"><small>Paid</small><b>${money(data.totalPaid, data.currency)}</b></div><div class="profile-stat"><small>Balance</small><b>${money(data.balance, data.currency)}</b></div><div class="profile-stat"><small>Past-due amount</small><b>${money(data.arrears, data.currency)}</b></div></div><p class="field-help">As of ${esc(data.asOf)}. First installment is one repayment interval after the start date. Payments cover the oldest installments first.</p>${table(
         ['#', 'Due date', 'Scheduled', 'Paid', 'Remaining', 'Status'],
         data.rows.map(
@@ -311,9 +311,9 @@ export function createOperationsUI(ctx) {
     const v = state().visits.find(v => v.id === id);
     openModal(
       'Correct a field record',
-      'The original values remain in correction history. Currency: ' + v.currency,
+      'Earlier amounts stay in the change history. Currency: ' + v.currency,
       formHtml(
-        field('Principal repayment received', 'paid', 'number', v.paid, 'required min="0" step="0.01"') +
+        field('Amount borrowed repayment received', 'paid', 'number', v.paid, 'required min="0" step="0.01"') +
           field('Savings contributed', 'savings', 'number', v.savings, 'required min="0" step="0.01"') +
           select(
             'Attendance',
@@ -326,7 +326,7 @@ export function createOperationsUI(ctx) {
             )
           ) +
           select(
-            'Loan utilisation check',
+            'Loan loan-use check',
             'utilisation',
             opts(
               ['not-checked', 'verified', 'follow-up'].map(x => ({ id: x, name: x })),
@@ -349,7 +349,7 @@ export function createOperationsUI(ctx) {
   async function history(id) {
     const data = await api(`/visits/${id}/history`);
     openModal(
-      'Correction history',
+      'Change history',
       `Visit ${esc(id)} · Current version ${data.visit.version}`,
       data.revisions
         .map(
@@ -364,7 +364,7 @@ export function createOperationsUI(ctx) {
                 )
             )}</section>`
         )
-        .join('') || '<div class="empty">No corrections. This is the original observation.</div>'
+        .join('') || '<div class="empty">No changes. This is the original entry.</div>'
     );
   }
 
@@ -374,8 +374,8 @@ export function createOperationsUI(ctx) {
       (state().workerCases || []).filter(c => c.status !== 'resolved').length;
     return (
       heading(
-        'Support coordination',
-        'Follow-up cases',
+        'Arrange help',
+        'Follow-ups',
         `${open} open ${open === 1 ? 'case' : 'cases'}. Across member, worker and livelihood support. Assign responsibility and record the outcome.`,
         button('Create follow-up', 'followup')
       ) +
@@ -401,7 +401,7 @@ export function createOperationsUI(ctx) {
       'Describe the support needed and who will follow through.',
       formHtml(
         select('Member', 'memberId', opts(state().members, 'id', 'name', selected), true) +
-          field('Case title', 'title', 'text', '', 'required maxlength="120"', true) +
+          field('Follow-up title', 'title', 'text', '', 'required maxlength="120"', true) +
           select('Assigned to', 'assigneeId', opts(staffOptions(selected), 'id', 'name', state().user.id)) +
           field('Due date', 'dueDate', 'date', ctx.today(), 'required') +
           field('Notes', 'notes', 'text', '', 'maxlength="1000"', true),
@@ -463,9 +463,9 @@ export function createOperationsUI(ctx) {
   function staffPage() {
     return (
       heading(
-        'Access management',
-        'Staff accounts',
-        'Officers see assigned groups. Supervisors review records. Administrators manage the workspace.',
+        'Who can use the app',
+        'Team members',
+        'Choose what each staff member can do. Field officers see their assigned groups. Supervisors review records. Administrators manage the app.',
         button('Add staff account', 'staff')
       ) +
       `<section class="panel">${table(
@@ -481,7 +481,7 @@ export function createOperationsUI(ctx) {
     const u = state().staff.find(u => u.id === id);
     openModal(
       u ? 'Manage staff account' : 'Add staff account',
-      'Passwords are hashed on the server. Share initial credentials directly with the staff member.',
+      'The server protects stored passwords. Give the staff member their first username and password privately.',
       formHtml(
         (!u
           ? field('Name', 'name', 'text', '', 'required') +
@@ -534,20 +534,20 @@ export function createOperationsUI(ctx) {
       legacy = localStorage.getItem('fl-queue');
     return (
       heading(
-        'Device storage',
+        'Records on this device',
         'Offline records',
-        'Save this workspace for fieldwork. Worker support, participation, livelihood checks and community records work without a connection.',
+        'Save your team’s records on this device before you travel. Then add visits, pay records and follow-ups without internet.',
         button(meta.locked ? 'Unlock records' : 'Lock records', meta.locked ? 'unlock' : 'lock', 'shield', true) +
-          button('Sync now', 'sync', 'activity')
+          button('Send saved changes', 'sync', 'activity')
       ) +
-      `<div class="explain">A scoped copy of household records and pending changes is encrypted in this browser’s IndexedDB. Use a device passphrase of at least 12 characters. It is never sent to the server. Records lock when you reload or sign out. A forgotten passphrase cannot be recovered. Encryption protects stored records; use a trusted, locked device.</div>${meta.hasWorkspace ? `<p class="field-help">Saved ${esc(meta.savedAt)} · Offline capture until ${esc(vault.workspace?.offlineAccess?.expiresAt || 'unlock to view')}.</p>` : ''}${legacy && state().user.id === 'admin' ? '<div class="review-strip">Earlier unencrypted pending visits were found. Unlock this vault, then use “Protect earlier records” to migrate them.<button class="text-btn" data-action="migrate-queue">Protect earlier records</button></div>' : ''}<section class="panel" style="margin-top:24px">${
+      `<div class="explain">Your permitted records and unsent changes are saved on this device in a form that needs your device password to open. Choose at least 12 characters. This password is not sent to the server. Reloading or signing out locks the records. A forgotten device password cannot be recovered. Use a device you trust and keep it locked.</div>${meta.hasWorkspace ? `<p class="field-help">Saved ${esc(meta.savedAt)} · Working without internet until ${esc(vault.workspace?.offlineAccess?.expiresAt || 'unlock to view')}.</p>` : ''}${legacy && state().user.id === 'admin' ? '<div class="review-strip">Older visits were found without password protection. Unlock your saved records, then choose “Protect earlier records” to protect those visits too.<button class="text-btn" data-action="migrate-queue">Protect earlier records</button></div>' : ''}<section class="panel" style="margin-top:24px">${
         meta.locked
           ? `<div class="empty">${meta.count} encrypted records · Locked</div>`
           : table(
-              ['Member', 'Date', 'Amounts', 'Sync status', ''],
+              ['Member', 'Date', 'Amounts', 'Sending status', ''],
               vault.records.map(
                 v =>
-                  `<tr><td>${esc(v.payload?.personId ? state().supportPeople?.find(p => p.id === v.payload.personId)?.name || v.payload.personId : v._path === '/support/people' ? v.payload.name : state().members.find(m => m.id === v.memberId)?.name || v.memberId)}</td><td>${v.date}</td><td>${v._kind ? esc(v._kind) : money(v.paid, v.currency) + ' repaid / ' + money(v.savings, v.currency) + ' saved'}</td><td>${esc(v._error || 'Waiting')}</td><td><button class="text-btn" data-action="queue-edit" data-id="${v.id}">Review / edit</button></td></tr>`
+                  `<tr><td>${esc(v.payload?.personId ? state().supportPeople?.find(p => p.id === v.payload.personId)?.name || v.payload.personId : v._path === '/support/people' ? v.payload.name : state().members.find(m => m.id === v.memberId)?.name || v.memberId)}</td><td>${v.date}</td><td>${v._kind ? esc(v._kind) : money(v.paid, v.currency) + ' repaid / ' + money(v.savings, v.currency) + ' saved'}</td><td>${esc(v._error || 'Waiting')}</td><td><button class="text-btn" data-action="queue-edit" data-id="${v.id}">Check / edit</button></td></tr>`
               )
             )
       }</section>`
@@ -556,9 +556,9 @@ export function createOperationsUI(ctx) {
   function unlockModal() {
     openModal(
       'Unlock offline records',
-      'Use the same device passphrase each time. Choose one now if this vault is new.',
+      'Use the same device password each time. If this is your first time saving records here, choose one now. Use at least 12 characters.',
       formHtml(
-        field('Device passphrase', 'password', 'password', '', 'required minlength="12" autocomplete="off"', true),
+        field('Device password', 'password', 'password', '', 'required minlength="12" autocomplete="off"', true),
         'Unlock'
       )
     );
@@ -567,14 +567,14 @@ export function createOperationsUI(ctx) {
       await vault.save(vault.records.map(v => ({ ...v, currency: inferCurrency(v) })));
       await vault.saveWorkspace(ctx.getServerState());
       ctx.setPending(vault.records);
-      toast('Workspace saved encrypted. You can reopen it offline with this passphrase.');
+      toast('Records saved and protected. Use this device password to reopen them without internet.');
     });
   }
   async function queueVisits(visits) {
     bindVault();
-    if (!vault.key) throw new Error('Unlock Offline records before capturing visits without a connection.');
+    if (!vault.key) throw new Error('Unlock Offline records before adding visits without internet.');
     if (!offlineAccessValid(vault.workspace))
-      throw new Error('Offline access expired. Reconnect and sign in to refresh this device.');
+      throw new Error('Offline access expired. Connect and sign in before adding more records.');
     await vault.mutateRecords(records => {
       const next = [...records];
       for (const v of visits) {
@@ -596,14 +596,14 @@ export function createOperationsUI(ctx) {
     if (v._kind) {
       const labels = {
         personId: 'Support person',
-        expected: 'Expected take-home pay',
-        periodStart: 'Period start',
-        periodEnd: 'Period end',
+        expected: 'Expected pay after deductions pay',
+        periodStart: 'Work period starts',
+        periodEnd: 'Work period ends',
         source: 'Information source',
         payId: 'Pay record',
         debtId: 'Debt record',
         opening: 'Opening reported debt',
-        sent: 'Remittance sent',
+        sent: 'Amount sent home',
         sentCurrency: 'Sent currency',
         fee: 'Transfer fee',
         received: 'Received amount',
@@ -612,36 +612,36 @@ export function createOperationsUI(ctx) {
         intended: 'Intended purchase',
         actual: 'Actual purchase or use',
         reason: 'Reason',
-        outcome: 'Human review outcome',
+        outcome: 'What did the lender decide?',
         date: 'Date',
         memberId: 'Member',
         response: 'Response status',
-        shortfallDays: 'Days unable to afford essentials',
-        stress: 'Financial stress',
-        essentials: 'Unmet essentials',
+        shortfallDays: 'Days the family could not pay for everyday needs',
+        stress: 'Worry about money',
+        essentials: 'Everyday needs not covered',
         causes: 'Reported circumstances',
         currency: 'Currency',
         income: 'Income',
         expenses: 'Spending',
-        explanation: 'Household explanation',
-        officerNotes: 'Officer observations',
-        supportPreference: 'Support preference',
+        explanation: 'What the family says',
+        officerNotes: 'What the field worker saw',
+        supportPreference: 'Does the family want help?',
         borrowing: 'Borrowing response',
         supportHelpfulness: 'Support feedback',
         milestone: 'Outcome milestone',
         action: 'Agreed action',
         notes: 'Notes',
         startDate: 'Plan start',
-        dueDate: 'Next action due',
+        dueDate: 'Next follow-up date',
         deliveryStatus: 'Delivery status',
-        status: 'Case status',
+        status: 'Follow-up status',
         receivedDate: 'Date received',
         requestedDate: 'Date requested',
         endedDate: 'Support ended',
         deliveryNotes: 'Delivery notes',
         resolution: 'Closure reason',
         amount: 'Expected amount',
-        kind: 'Entry type',
+        kind: 'Money coming in or going out',
         label: 'Purpose',
         voluntaryConfirmed: 'Voluntary response confirmed',
         agreed: 'Household agreement',
@@ -656,7 +656,7 @@ export function createOperationsUI(ctx) {
       openModal(
         'Review pending record',
         esc(v._kind),
-        `<p class="form-error">${esc(v._error || 'Waiting to sync')}</p><div class="kv">${values}</div><p class="field-help">For a conflict, compare with the current record, discard this copy, and re-enter the corrected details. Nothing is discarded automatically.</p><button class="btn secondary" data-action="queue-discard" data-id="${id}">Discard this pending copy…</button>`
+        `<p class="form-error">${esc(v._error || 'Waiting to sync')}</p><div class="kv">${values}</div><p class="field-help">This copy may differ from the team’s record. Compare them first. If needed, remove this unsent copy and enter the correct details. The app will not remove it for you.</p><button class="btn secondary" data-action="queue-discard" data-id="${id}">Remove this unsent copy…</button>`
       );
       return;
     }
@@ -693,7 +693,7 @@ export function createOperationsUI(ctx) {
           ) +
           field('Notes', 'note', 'text', v.note, 'maxlength="1000"', true),
         'Save pending changes',
-        `<p class="field-help">${esc(v._error || 'Not synced yet.')} If the server already has this visit, correct that server record or discard this pending duplicate after checking it.</p><button class="text-btn" type="button" data-action="queue-discard" data-id="${id}">Discard this pending copy…</button>`
+        `<p class="field-help">${esc(v._error || 'Not synced yet.')} If the server already has this visit, correct that server record or discard this pending duplicate after checking it.</p><button class="text-btn" type="button" data-action="queue-discard" data-id="${id}">Remove this unsent copy…</button>`
       )
     );
     setMoneySteps($('#dialog'), v.currency);
@@ -710,7 +710,7 @@ export function createOperationsUI(ctx) {
     if (syncing) return;
     bindVault();
     if (!navigator.onLine) {
-      toast('Offline. Pending records remain on this device.');
+      toast('Offline. Unsent records stay on this device.');
       return;
     }
     if (vault.metadata().count && !vault.key) {
@@ -723,7 +723,7 @@ export function createOperationsUI(ctx) {
     try {
       const current = await ctx.rawApi('/workspace');
       if (current.config.workspaceId + '-' + current.user.id !== vault.owner)
-        throw new Error('Sign in with the account that owns these offline records before syncing.');
+        throw new Error('Sign in with the account that saved these records before sending them.');
       await ctx.acceptWorkspace(current);
       for (const record of [...vault.records]) {
         try {
@@ -741,7 +741,7 @@ export function createOperationsUI(ctx) {
             break;
           }
           if (!e.status || e.status >= 500) {
-            toast('Connection interrupted. Pending records remain encrypted; retry sync when connected.');
+            toast('The connection stopped. Your unsent records are still protected on this device. Try sending them when connected.');
             break;
           }
           await vault.mutateRecords(records =>
@@ -750,7 +750,7 @@ export function createOperationsUI(ctx) {
         }
       }
       if (sessionExpired) {
-        toast('Sign in and unlock the vault to continue syncing. Remaining records are preserved.');
+        toast('Sign in and unlock your saved records to continue sending them. Unsent records are kept.');
         return;
       }
       ctx.setPending(vault.records);
@@ -766,9 +766,9 @@ export function createOperationsUI(ctx) {
   function importModal() {
     importCsv = '';
     openModal(
-      'Import members from CSV',
-      'Preview validates every row. Import is all-or-nothing.',
-      `<p class="field-help">Use existing group IDs. Identity references contain four digits only. Imports do not verify identity or grant sharing permission.</p><button class="btn secondary" data-action="csv-template">Download CSV template</button><label class="field" style="margin-top:20px">Choose CSV file<input id="csv-file" type="file" accept=".csv,text/csv"></label><div id="csv-preview"></div><div class="form-error" role="alert"></div><div class="form-actions"><button class="btn secondary" data-action="csv-preview">Preview CSV</button><button class="btn" id="csv-commit" data-action="csv-commit" disabled>Import members</button></div>`
+      'Add members from a spreadsheet',
+      'Choose a CSV spreadsheet, then check the preview. Fix every error before adding the members. All rows are added together.',
+      `<p class="field-help">Use group numbers already in the app. Enter only the last four ID digits. Uploading a file does not check identity or give permission to share records.</p><button class="btn secondary" data-action="csv-template">Download spreadsheet template</button><label class="field" style="margin-top:20px">Choose CSV file<input id="csv-file" type="file" accept=".csv,text/csv"></label><div id="csv-preview"></div><div class="form-error" role="alert"></div><div class="form-actions"><button class="btn secondary" data-action="csv-preview">Check spreadsheet</button><button class="btn" id="csv-commit" data-action="csv-commit" disabled>Add these members</button></div>`
     );
     $('#csv-file').addEventListener('change', async e => {
       importCsv = (await e.target.files[0]?.text()) || '';
@@ -787,17 +787,17 @@ export function createOperationsUI(ctx) {
   }
   function enhanceSettings() {
     const panel = $('.settings-grid .panel:last-child .panel-body');
-    panel.innerHTML = `<div class="explain"><strong>Protected backups</strong><br>Download an encrypted backup of records, staff accounts, configuration and correction history. Keep the passphrase separate from the backup file.</div><div class="actions" style="margin:20px 0">${button('Download backup', 'backup', 'down', true)}${button('Configure forms & language', 'config', 'settings', true)}</div><p class="online-note">Restore with the documented command into a new data directory. The administrator password is configured on the server and is not included in backups.</p>`;
+    panel.innerHTML = `<div class="explain"><strong>Backup copies</strong><br>Download a password-protected copy of all records, team accounts, settings and change history. Keep its password separate from the file.</div><div class="actions" style="margin:20px 0">${button('Download backup', 'backup', 'down', true)}${button('Edit member form', 'config', 'settings', true)}</div><p class="online-note">Ask your server administrator to restore the backup using the README instructions. The main administrator password is not included.</p>`;
   }
   function configModal() {
     const c = state().config;
     openModal(
-      'Forms & language',
-      'Changes apply to new enrollments. Existing answers remain in member history.',
+      'Member form settings',
+      'Changes apply when adding new members. Earlier answers stay in their records.',
       formHtml(
         select('Language', 'language', opts(LANGUAGES, 'code', 'name', c.language), true) +
           field('Time zone', 'timeZone', 'text', c.timeZone || 'Asia/Kolkata', 'required', true) +
-          `<label class="field wide">Accepted identity document types (one per line)<textarea name="acceptedIds" required>${esc(c.acceptedIds.join('\n'))}</textarea></label><div class="field wide"><span>Additional enrollment questions</span><div id="question-list">${c.questions.map(q => questionRow(q)).join('')}</div><button class="text-btn" type="button" data-action="add-question">Add question</button></div>`,
+          `<label class="field wide">Accepted identity document types (one per line)<textarea name="acceptedIds" required>${esc(c.acceptedIds.join('\n'))}</textarea></label><div class="field wide"><span>Extra questions for new members</span><div id="question-list">${c.questions.map(q => questionRow(q)).join('')}</div><button class="text-btn" type="button" data-action="add-question">Add question</button></div>`,
         'Save configuration'
       )
     );
@@ -817,7 +817,7 @@ export function createOperationsUI(ctx) {
           .filter(Boolean),
         questions,
       });
-      toast('Enrollment configuration saved.');
+      toast('Sign-up configuration saved.');
     });
   }
   function questionRow(q = {}) {
@@ -825,18 +825,18 @@ export function createOperationsUI(ctx) {
   }
   function backupModal() {
     openModal(
-      'Download encrypted backup',
+      'Download protected backup',
       'Use a unique passphrase and keep it somewhere safe.',
       formHtml(
         field(
-          'Backup passphrase',
+          'Backup password',
           'password',
           'password',
           '',
           'required minlength="12" maxlength="200" autocomplete="new-password"',
           true
         ),
-        'Encrypt & download'
+        'Protect & download'
       )
     );
     handleForm(async b => {
@@ -892,11 +892,11 @@ export function createOperationsUI(ctx) {
           break;
         case 'queue-discard':
           openModal(
-            'Discard pending copy?',
-            'This removes only the unsynced copy on this device. Check the server record first.',
+            'Remove this unsent copy?',
+            'This removes only the unsent copy on this device. Check your team’s saved record first.',
             formHtml(
-              '<label class="check field wide"><input type="checkbox" required>I checked this copy and want to discard it.</label>',
-              'Discard copy'
+              '<label class="check field wide"><input type="checkbox" required>I checked this copy and want to remove it.</label>',
+              'Remove copy'
             )
           );
           handleForm(async () => {
@@ -986,9 +986,9 @@ export function createOperationsUI(ctx) {
   });
   async function queueHealth(path, method, payload, kind) {
     bindVault();
-    if (!vault.key) throw new Error('Unlock Offline records before capturing household records.');
+    if (!vault.key) throw new Error('Unlock Offline records before adding records without internet.');
     if (!offlineAccessValid(vault.workspace))
-      throw new Error('Offline access expired. Reconnect and sign in to refresh this device.');
+      throw new Error('Offline access expired. Connect and sign in before adding more records.');
     const id = payload.operationId || payload.id;
     if (vault.records.some(r => r.id === id)) throw new Error('This record is already queued. Review Offline records.');
     await vault.mutateRecords(records => [

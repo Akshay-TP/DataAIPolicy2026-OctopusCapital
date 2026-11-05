@@ -38,20 +38,20 @@ export function createCertificateUI(ctx) {
     owner = '';
   function previewFields(payload) {
     return `<dl class="certificate-fields">${[
-      ['Claim', 'Specified loan closure'],
-      ['Issuer', payload.issuerName],
+      ['What this proves', 'This lender confirms that this loan is fully repaid. It does not cover other loans.'],
+      ['Issued by', payload.issuerName],
       ['Borrower reference', payload.subjectRef],
-      ['Specified loan reference', payload.loanRef],
-      ['Intended recipient', recipientName(payload.recipientId)],
-      ['Assessment date', payload.assessmentDate],
+      ['Loan reference', payload.loanRef],
+      ['Who should receive it?', recipientName(payload.recipientId)],
+      ['Date the loan was checked', payload.assessmentDate],
       ['Prepared', payload.preparedAt],
       ['Expires', payload.expiresAt],
-      ['Certificate ID', payload.id],
+      ['Proof number', payload.id],
     ]
       .map(([label, value]) => `<div><dt>${label}</dt><dd data-no-translate>${esc(value)}</dd></div>`)
       .join(
         ''
-      )}</dl><p>${esc(payload.statement)}</p>${payload.synthetic ? '<p class="review-strip">Synthetic demonstration. Not evidence from a real institution.</p>' : ''}`;
+      )}</dl><details class="health-history"><summary>Exact wording in the signed file</summary><p>${esc(payload.statement)}</p></details>${payload.synthetic ? '<p class="review-strip">Made-up demo record. This is not proof from a real lender.</p>' : ''}`;
   }
   function page() {
     const nextOwner = state().config.workspaceId + '-' + state().user.id;
@@ -65,28 +65,28 @@ export function createCertificateUI(ctx) {
     const config = settings();
     return (
       heading(
-        'Documentary evidence',
-        'Loan-closure certificates',
-        'One limited claim. Signature, withdrawal status, identity matching and acceptance are checked separately.',
-        action('Download withdrawal snapshot', 'status') +
-          (state().user.role === 'admin' ? action('Recipient policy', 'policy') : '')
+        'Loan repayment proof',
+        'Proof a loan is repaid',
+        'Create or check proof that one loan has been fully repaid. Check the document, the person presenting it and whether your organisation accepts it as separate steps.',
+        action('Download cancellation list', 'status') +
+          (state().user.role === 'admin' ? action('Rules for accepting proof', 'policy') : '')
       ) +
-      `<div class="explain"><strong>${esc(config.issuer?.name || 'Verification workspace')}</strong><br>${config.synthetic ? 'Fictional institutional workflow with synthetic records. Research contact does not establish adoption or acceptance.' : 'Use only an institution-approved issuer key and an agreed documentary requirement.'} Offline checks use cached public keys and withdrawal information; newer withdrawals may be unknown.</div><div class="certificate-tabs" role="tablist">${['issue', 'verify'].map(value => `<button role="tab" aria-selected="${tab === value}" class="btn ${tab === value ? '' : 'secondary'}" data-action="cert-tab" data-id="${value}">${value === 'issue' ? 'Prepare & issue' : 'Receive & verify'}</button>`).join('')}</div>` +
+      `<div class="explain"><strong>${esc(config.issuer?.name || 'Verification workspace')}</strong><br>${config.synthetic ? 'This demo uses made-up organisations and records. It does not show that a real lender has agreed to use or accept these files.' : 'Your organisation must agree which lenders it trusts and when it will accept their proof.'} Without internet, checks use saved lender signatures and cancellation lists. A later cancellation may not appear yet.</div><div class="certificate-tabs" role="tablist">${['issue', 'verify'].map(value => `<button role="tab" aria-selected="${tab === value}" class="btn ${tab === value ? '' : 'secondary'}" data-action="cert-tab" data-id="${value}">${value === 'issue' ? 'Create proof' : 'Check received proof'}</button>`).join('')}</div>` +
       (tab === 'issue' ? issuancePage() : verificationPage())
     );
   }
   function issuancePage() {
-    return `<section class="panel"><div class="panel-header"><h2>Source and borrower reviews</h2>${authorised() && settings().issuer ? button('Prepare closure claim', 'cert-prepare', 'plus') : ''}</div>${!settings().issuer ? '<p class="panel-body">Signing is disabled. Configure an issuer and protected signing key on this institution’s server.</p>' : ''}${table(
-      ['Specified loan / borrower', 'Source / status', ''],
+    return `<section class="panel"><div class="panel-header"><h2>Proof waiting for review</h2>${authorised() && settings().issuer ? button('Start a proof of repayment', 'cert-prepare', 'plus') : ''}</div>${!settings().issuer ? '<p class="panel-body">This team cannot issue proof yet. Ask your server administrator to set up the organisation’s digital signature.</p>' : ''}${table(
+      ['Loan / borrower', 'Record checked / progress', ''],
       state().closureReviews.map(
         row =>
-          `<tr><td><strong data-no-translate>${esc(row.payload.loanRef)}</strong><div data-no-translate>${esc(row.payload.subjectRef)}</div></td><td>${esc(row.sourceSystem)} · ${esc(displayCertificateResult(row.status))}<div class="field-help">${row.payload.assessmentDate}</div></td><td>${action('Review preview', 'review', row.id)}</td></tr>`
+          `<tr><td><strong data-no-translate>${esc(row.payload.loanRef)}</strong><div data-no-translate>${esc(row.payload.subjectRef)}</div></td><td>${esc(row.sourceSystem)} · ${esc(displayCertificateResult(row.status))}<div class="field-help">${row.payload.assessmentDate}</div></td><td>${action('Open review', 'review', row.id)}</td></tr>`
       )
-    )}</section><section class="panel certificate-section"><div class="panel-header"><h2>Issued certificates</h2></div>${table(
-      ['Certificate / loan', 'Issued / status', ''],
+    )}</section><section class="panel certificate-section"><div class="panel-header"><h2>Proof already issued</h2></div>${table(
+      ['Proof / loan', 'Issue date / status', ''],
       state().certificates.map(
         row =>
-          `<tr><td data-no-translate>${esc(row.envelope.payload.loanRef)}<div class="field-help">${esc(row.id)}</div></td><td>${row.issuedAt.slice(0, 10)} · ${row.withdrawal ? 'Withdrawn' : 'Issued'}${row.withdrawal ? `<div class="field-help" data-no-translate>${esc(row.withdrawal.reason)}</div>` : ''}</td><td>${action('File & printable QR', 'delivery', row.id)}${authorised() && !row.withdrawal ? action('Withdraw', 'withdraw', row.id) : ''}${authorised() ? action('Prepare replacement', 'replace', row.id) : ''}</td></tr>`
+          `<tr><td data-no-translate>${esc(row.envelope.payload.loanRef)}<div class="field-help">${esc(row.id)}</div></td><td>${row.issuedAt.slice(0, 10)} · ${row.withdrawal ? 'Cancelled' : 'Issued'}${row.withdrawal ? `<div class="field-help" data-no-translate>${esc(row.withdrawal.reason)}</div>` : ''}</td><td>${action('Download or print', 'delivery', row.id)}${authorised() && !row.withdrawal ? action('Withdraw', 'withdraw', row.id) : ''}${authorised() ? action('Create corrected proof', 'replace', row.id) : ''}</td></tr>`
       )
     )}</section>`;
   }
@@ -100,52 +100,52 @@ export function createCertificateUI(ctx) {
         ).values(),
       ];
     if (!loans.length) {
-      toast('Record and reconcile a specified loan first.');
+      toast('Add the loan and check its records first.');
       return;
     }
     const chosen =
         loans.find(row => row.id === loanId) || loans.find(row => !closureBlockers(state(), row.id).length) || loans[0],
       id = crypto.randomUUID();
     openModal(
-      'Review authoritative closure records',
-      'A zero balance alone is not an authorised closure decision.',
+      'Check the loan’s official records',
+      'Check the lender’s official records. A zero balance here does not by itself prove that all money owed has been paid.',
       formHtml(
-        select('Specified loan', 'loanId', opts(loans, 'id', 'id', chosen.id), true) +
-          field('Borrower reference to disclose', 'subjectRef', 'text', chosen.memberId, 'required maxlength="60"') +
-          field('Loan reference to disclose', 'loanRef', 'text', chosen.id, 'required maxlength="60"') +
+        select('Which loan?', 'loanId', opts(loans, 'id', 'id', chosen.id), true) +
+          field('Borrower reference to share', 'subjectRef', 'text', chosen.memberId, 'required maxlength="60"') +
+          field('Loan reference to share', 'loanRef', 'text', chosen.id, 'required maxlength="60"') +
           select(
-            'Receiving institution',
+            'Who will receive this proof?',
             'recipientId',
             opts(keys, 'issuerId', 'name', keys.find(key => key.issuerId !== settings().issuer.issuerId)?.issuerId),
             true
           ) +
           select(
-            'Authoritative record system',
+            'Where are the official loan records?',
             'sourceSystem',
-            '<option value="fieldledger">FieldLedger institution ledger</option><option value="BR.NET">BR.NET (manually reconciled)</option><option value="other-external">Other authoritative system (manually reconciled)</option>',
+            '<option value="fieldledger">FieldLedger loan records</option><option value="BR.NET">BR.NET (you must check it yourself)</option><option value="other-external">Another system (you must check it yourself)</option>',
             true
           ) +
           field(
-            'Reconciliation reference (kept internal)',
+            'Note where you checked the records (not shared)',
             'sourceReference',
             'text',
             '',
             'required minlength="5" maxlength="300"',
             true
           ) +
-          field('Assessment date', 'assessmentDate', 'date', ctx.today(), `required max="${ctx.today()}"`) +
-          field('Validity in days', 'validDays', 'number', 30, 'required min="1" max="365" step="1"') +
+          field('Date the loan was checked', 'assessmentDate', 'date', ctx.today(), `required max="${ctx.today()}"`) +
+          field('How many days should this proof stay valid?', 'validDays', 'number', 30, 'required min="1" max="365" step="1"') +
           check(
             'authoritativeClosed',
-            'I reviewed the authoritative source and confirm this specified loan is closed, including any obligations outside this principal-only ledger.'
+            'I checked the official records. This loan is closed and fully paid, including anything owed outside FieldLedger.'
           ) +
-          check('paymentsFinal', 'All relevant payments are final and reconciled; no pending payments are omitted.') +
+          check('paymentsFinal', 'I checked all payments. They are complete, and none are still waiting to clear.') +
           check(
             'noPendingCorrections',
-            'There are no unresolved corrections affecting closure, including unsynced field records.'
+            'No corrections are still needed, including records on field devices that have not reached the server.'
           ),
-        'Prepare exact borrower preview',
-        '<p class="field-help">Use agreed references, never full identity numbers. This form does not contact BR.NET. The next step requires the borrower’s review and permission.</p>'
+        'Show what will be shared',
+        '<p class="field-help">Use reference numbers agreed with the borrower, never full ID numbers. Check BR.NET yourself if needed. Next, show the borrower exactly what will be shared and ask permission.</p>'
       )
     );
     handleForm(
@@ -174,30 +174,30 @@ export function createCertificateUI(ctx) {
     const borrowerForm = ['prepared', 'correction-requested'].includes(row.status)
       ? formHtml(
           select(
-            'Borrower’s choice',
+            'What does the borrower want to do?',
             'decision',
-            '<option value="approved">Reviewed and approved for the named recipient</option><option value="correction-requested">Correction requested — do not issue</option>',
+            '<option value="approved">Share this proof with the named organisation</option><option value="correction-requested">Correct something first — do not issue proof</option>',
             true
           ) +
             check(
               'explained',
-              'I explained every disclosed field, the limited claim, expiry and intended recipient in a language the borrower understands.'
+              'I explained every field, what this proof covers, when it expires and who will receive it, in a language the borrower understands.'
             ) +
-            '<label class="check field wide"><input type="checkbox" name="consented"><span>The borrower permits this exact claim to be shared with this named recipient.</span></label>' +
-            note('Review / correction note (internal)', 'note'),
+            '<label class="check field wide"><input type="checkbox" name="consented"><span>The borrower agrees to share exactly this information with the organisation shown.</span></label>' +
+            note('Review notes or changes needed (not shared)', 'note'),
           'Record borrower’s choice'
         )
       : row.status === 'borrower-reviewed' && authorised()
         ? formHtml(
-            check('authorised', 'I am authorised by this issuing institution to approve this specific certificate.'),
-            'Sign approved certificate'
+            check('authorised', 'My organisation has given me permission to issue this proof.'),
+            'Sign and issue proof'
           )
         : '';
     openModal(
-      'Borrower-reviewed closure claim',
-      'Review the exact disclosed information below.',
+      'Show the borrower what will be shared',
+      'Check every field with the borrower before sharing.',
       previewFields(row.payload) +
-        `<details class="health-history"><summary>Exact data to be signed</summary><pre class="certificate-json" data-no-translate>${esc(canonicalJson(row.payload))}</pre></details><details class="health-history"><summary>Internal source review</summary><p>Source: ${esc(row.sourceSystem)}</p><p data-no-translate>${esc(row.sourceReference)}</p><p class="record-fingerprint">Approved source version: ${esc(row.sourceVersion)}</p><p>Recorded by ${esc(row.createdBy)}. Status: ${esc(displayCertificateResult(row.status))}.</p></details>` +
+        `<details class="health-history"><summary>File details for technical checks</summary><pre class="certificate-json" data-no-translate>${esc(canonicalJson(row.payload))}</pre></details><details class="health-history"><summary>Staff record of checks</summary><p>Source: ${esc(row.sourceSystem)}</p><p data-no-translate>${esc(row.sourceReference)}</p><p class="record-fingerprint">Record version checked: ${esc(row.sourceVersion)}</p><p>Recorded by ${esc(row.createdBy)}. Status: ${esc(displayCertificateResult(row.status))}.</p></details>` +
         borrowerForm
     );
     $('#dialog').classList.add('wide-dialog');
@@ -216,46 +216,46 @@ export function createCertificateUI(ctx) {
     else if (row.status === 'borrower-reviewed' && authorised())
       handleForm(async () => {
         await ctx.rawApi(`/certificates/reviews/${id}/issue`, 'POST', { authorised: true });
-        toast('Approved claim signed.');
+        toast('Proof signed and issued.');
       });
   }
   async function delivery(id) {
     const data = await ctx.rawApi(`/certificates/issued/${id}/delivery`),
       payload = data.envelope.payload;
     openModal(
-      'Specified loan closure certificate',
-      'File and QR contain the same signed claim.',
-      `<article class="certificate-paper"><h2>Specified loan closure</h2>${data.withdrawal ? '<p class="review-strip">WITHDRAWN — do not rely on this certificate.</p>' : ''}${previewFields(payload)}<img class="certificate-qr" src="${data.qr}" alt="QR encoding the complete signed certificate"><p>Present this signed file or QR to the named institution. Identity matching and documentary acceptance remain separate. A recipient needs previously approved public keys and sufficiently fresh withdrawal information.</p></article><div class="form-actions"><button class="btn secondary" id="certificate-file">Download signed JSON</button><a class="btn secondary" href="${data.qr}" download="${esc(id)}.png">Download QR image</a><button class="btn" data-action="print">Print certificate</button></div>`
+      'Proof this loan is fully repaid',
+      'The file and QR code contain the same signed proof.',
+      `<article class="certificate-paper"><h2>Loan fully repaid</h2>${data.withdrawal ? '<p class="review-strip">CANCELLED — do not use this proof.</p>' : ''}${previewFields(payload)}<img class="certificate-qr" src="${data.qr}" alt="QR code containing the signed proof"><p>Give this file or printed QR code to the organisation shown. They must check their trusted lender list and a recent cancellation list. They must also check who is presenting it and decide whether to accept the proof.</p></article><div class="form-actions"><button class="btn secondary" id="certificate-file">Download proof file</button><a class="btn secondary" href="${data.qr}" download="${esc(id)}.png">Download QR image</a><button class="btn" data-action="print">Print proof</button></div>`
     );
     $('#dialog').classList.add('wide-dialog', 'printable');
     $('#certificate-file').onclick = () => download(id + '.json', data.envelope);
   }
   function withdraw(id) {
     openModal(
-      'Withdraw certificate',
-      'The original signed claim and issuance history are retained.',
-      formHtml(note('Reason (internal)', 'reason'), 'Withdraw certificate')
+      'Cancel this proof',
+      'The proof and its issue history stay on record. A cancellation tells others not to rely on it.',
+      formHtml(note('Reason (internal)', 'reason'), 'Cancel this proof')
     );
     handleForm(async body => {
       await ctx.rawApi(`/certificates/issued/${id}/withdraw`, 'POST', body);
-      toast('Withdrawn. Export an updated signed withdrawal snapshot for recipients.');
+      toast('Proof cancelled. Download the updated cancellation list and give it to the organisations checking the proof.');
     });
   }
   function policy() {
     const p = settings().policy;
     openModal(
-      'Recipient documentary policy',
-      'This policy governs the closure-letter check, never a lending decision.',
+      'Rules for accepting loan proof',
+      'These rules apply only to checking loan repayment proof. They do not decide whether someone gets a loan.',
       formHtml(
         field(
-          'Maximum cached status age (hours)',
+          'How old can a saved cancellation list be? (hours)',
           'maxStatusAgeHours',
           'number',
           p.maxStatusAgeHours,
           'required min="0" max="168" step="0.25"'
         ) +
-          `<label class="check field wide"><input type="checkbox" name="requireLiveStatus" ${p.requireLiveStatus ? 'checked' : ''}><span>Require current issuer contact. Cached offline evidence alone cannot meet this policy.</span></label>`,
-        'Save policy'
+          `<label class="check field wide"><input type="checkbox" name="requireLiveStatus" ${p.requireLiveStatus ? 'checked' : ''}><span>Require a fresh check with the issuing lender. A saved list is not enough. This app cannot make a live check, so acceptance will stay blocked.</span></label>`,
+        'Save rules'
       )
     );
     handleForm(async body => {
@@ -266,17 +266,17 @@ export function createCertificateUI(ctx) {
     });
   }
   function verificationPage() {
-    return `<details class="health-history"><summary>Approved issuer registry (${settings().keys.length} keys)</summary>${table(
-      ['Issuer / key', 'Public key', 'Approved until'],
+    return `<details class="health-history"><summary>Trusted lenders and signature keys (${settings().keys.length} keys)</summary>${table(
+      ['Lender / signature key', 'Signature key (public)', 'Trusted until'],
       settings().keys.map(
         key =>
           `<tr><td>${esc(key.name)}<div>${esc(key.keyId)}</div></td><td class="record-fingerprint">${esc(key.publicKey)}</td><td>${esc(key.validUntil)}${key.disabled ? ' · Disabled' : ''}</td></tr>`
       )
-    )}<p class="field-help">This registry is configured by the receiving institution. Presented certificates cannot add keys to it.</p></details><section class="panel"><div class="panel-body"><h2>Receive a closure claim</h2><p class="field-help">Verification runs on this device. No issuer contact is made. A key included by a presenter is never trusted automatically.</p><div class="certificate-imports"><label class="field">Signed JSON file<input id="certificate-upload" type="file" accept="application/json,.json"></label><label class="field">Printed QR image<input id="certificate-image" type="file" accept="image/png,image/jpeg,image/webp"></label><label class="field">Signed withdrawal snapshot<input id="certificate-status" type="file" accept="application/json,.json"></label></div><label class="field">Signed certificate JSON<textarea id="certificate-text" rows="5" maxlength="20000" placeholder="Paste the complete signed certificate…">${esc(inputText)}</textarea></label><button class="btn" id="certificate-verify">Verify on this device</button><p class="form-error" id="certificate-error" role="alert"></p><div id="certificate-result" aria-live="polite"></div></div></section><section class="panel certificate-section"><div class="panel-header"><h2>Recorded documentary reviews</h2></div>${table(
-      ['Recorded / requirement', 'Identity', 'Documentary acceptance', 'Reason'],
+    )}<p class="field-help">Your organisation chooses which lender signatures to trust. Opening a proof file cannot add a lender to this list.</p></details><section class="panel"><div class="panel-body"><h2>Check a loan repayment proof</h2><p class="field-help">Choose a proof file, upload a photo of its QR code, or paste the file text below. Checks run on this device without contacting the lender. Only signatures already trusted by your organisation are accepted.</p><div class="certificate-imports"><label class="field">Proof file (.json)<input id="certificate-upload" type="file" accept="application/json,.json"></label><label class="field">Photo or image of the QR code<input id="certificate-image" type="file" accept="image/png,image/jpeg,image/webp"></label><label class="field">Signed cancellation list (.json)<input id="certificate-status" type="file" accept="application/json,.json"></label></div><label class="field">Or paste the proof file text<textarea id="certificate-text" rows="5" maxlength="20000" placeholder="Paste all the text from the proof file…">${esc(inputText)}</textarea></label><button class="btn" id="certificate-verify">Check this proof</button><p class="form-error" id="certificate-error" role="alert"></p><div id="certificate-result" aria-live="polite"></div></div></section><section class="panel certificate-section"><div class="panel-header"><h2>Earlier checks of proof</h2></div>${table(
+      ['Date / purpose', 'Identity', 'Decision on this proof', 'Reason'],
       state().certificateDecisions.map(
         row =>
-          `<tr><td>${row.createdAt.slice(0, 10)}<div class="field-help">Closure-letter authentication${row.pending ? ' · Pending sync' : ''}</div></td><td>${esc(displayCertificateResult(row.identity))}</td><td>${esc(displayCertificateResult(row.acceptance))}</td><td data-no-translate>${esc(row.reason)}</td></tr>`
+          `<tr><td>${row.createdAt.slice(0, 10)}<div class="field-help">Proof of loan repayment${row.pending ? ' · Not sent yet' : ''}</div></td><td>${esc(displayCertificateResult(row.identity))}</td><td>${esc(displayCertificateResult(row.acceptance))}</td><td data-no-translate>${esc(row.reason)}</td></tr>`
       )
     )}</section>`;
   }
@@ -304,19 +304,19 @@ export function createCertificateUI(ctx) {
         snapshot.payload?.issuedAt === result.statusIssuedAt
       ) || null;
       const labels = {
-        format: 'Claim format',
-        issuer: 'Approved issuer key',
-        signature: 'Signature integrity',
-        dates: 'Validity dates',
-        recipient: 'Intended recipient',
-        withdrawal: 'Withdrawal information',
+        format: 'Type of proof',
+        issuer: 'Trusted lender signature key',
+        signature: 'Digital signature (checks for changes)',
+        dates: 'Is it still within its valid dates?',
+        recipient: 'Who should receive it?',
+        withdrawal: 'Cancellation check',
       };
-      $('#certificate-result').innerHTML = `<h3 class="section-title">Independent document checks</h3>${table(
+      $('#certificate-result').innerHTML = `<h3 class="section-title">Document check results</h3>${table(
         ['Check', 'Result'],
         Object.entries(labels).map(
           ([key, label]) => `<tr><td>${label}</td><td>${esc(displayCertificateResult(report[key]))}</td></tr>`
         )
-      )}<p class="field-help">Status snapshot: ${esc(report.statusIssuedAt || 'Not available')}. ${report.statusAgeHours === null ? 'Age unknown.' : `Age ${report.statusAgeHours.toFixed(2)} hours; recipient limit ${settings().policy.maxStatusAgeHours} hours.`} Even a fresh cached snapshot cannot exclude a newer withdrawal.</p><p class="explain">${report.evidenceValid ? 'The document checks pass against the available snapshot. Identity and institutional acceptance still require separate review.' : 'Further review is required. Do not treat this result as accepted evidence.'}</p><form id="certificate-decision"><div class="form-grid">${select('Applicant record (optional)', 'applicantMemberId', '<option value="">Not linked to a member</option>' + opts(state().members), true)}${select('Identity matching', 'identity', '<option value="unresolved">Unresolved</option><option value="matched">Matched separately by receiving staff</option><option value="mismatched">Mismatch</option>', true)}${note('Identity-check method / unresolved issue', 'identityNotes')}${select('Closure-letter documentary requirement', 'acceptance', '<option value="manual-review">Requires manual review</option><option value="accepted">Accepted for this documentary requirement only</option><option value="not-accepted">Not accepted</option>', true)}${note('Acceptance / review reason', 'reason')}</div><p class="form-error" role="alert"></p><div class="form-actions"><button class="btn">Record documentary review</button></div></form>`;
+      )}<p class="field-help">Cancellation list saved: ${esc(report.statusIssuedAt || 'Not available')}. ${report.statusAgeHours === null ? 'We do not know how old the list is.' : `Age ${report.statusAgeHours.toFixed(2)} hours; maximum allowed ${settings().policy.maxStatusAgeHours} hours.`} A cancellation made after this list was saved may not appear here.</p><p class="explain">${report.evidenceValid ? 'The document checks pass using this saved list. Next, check who is presenting it and decide whether your organisation accepts the proof.' : 'Something still needs checking. Do not accept this proof yet.'}</p><form id="certificate-decision"><div class="form-grid">${select('Link to a member (optional)', 'applicantMemberId', '<option value="">Not linked to a member</option>' + opts(state().members), true)}${select('Does it belong to the person presenting it?', 'identity', '<option value="unresolved">Not checked yet</option><option value="matched">Yes — staff checked their identity separately</option><option value="mismatched">It does not match this person</option>', true)}${note('How did you check their identity, or what is still unclear?', 'identityNotes')}${select('Does your organisation accept this proof of repayment?', 'acceptance', '<option value="manual-review">Staff need to check further</option><option value="accepted">Accept as proof of this loan’s repayment only</option><option value="not-accepted">Not accepted</option>', true)}${note('Explain your decision or what needs checking', 'reason')}</div><p class="form-error" role="alert"></p><div class="form-actions"><button class="btn">Save this check</button></div></form>`;
       const decisionId = crypto.randomUUID();
       $('#certificate-decision').onsubmit = async event => {
         event.preventDefault();
@@ -326,7 +326,7 @@ export function createCertificateUI(ctx) {
         try {
           const body = Object.fromEntries(new FormData(f));
           if (body.acceptance === 'accepted' && (!report.evidenceValid || body.identity !== 'matched'))
-            throw new Error('Document checks and a separate identity match are both required.');
+            throw new Error('The document checks must pass, and you must check that it belongs to the person presenting it.');
           const payload = {
             ...body,
             id: decisionId,
@@ -335,11 +335,11 @@ export function createCertificateUI(ctx) {
             applicantMemberId: body.applicantMemberId || null,
           };
           if (!navigator.onLine)
-            await ctx.operationsUI.queueHealth('/certificates/decisions', 'POST', payload, 'Documentary review');
+            await ctx.operationsUI.queueHealth('/certificates/decisions', 'POST', payload, 'Loan proof check');
           else await ctx.api('/certificates/decisions', 'POST', payload);
           if (!ctx.operationsUI.unlocked()) await ctx.refresh();
           ctx.render();
-          toast('Documentary review recorded. This is not a lending decision.');
+          toast('Check saved. This does not approve a loan.');
         } catch (error) {
           f.querySelector('.form-error').textContent = error.message;
         } finally {
@@ -348,7 +348,7 @@ export function createCertificateUI(ctx) {
       };
     } catch (error) {
       $('#certificate-error').textContent =
-        error instanceof SyntaxError ? 'Enter a complete signed JSON certificate.' : error.message;
+        error instanceof SyntaxError ? 'Paste the full text from the proof file.' : error.message;
     }
   }
   function enhance() {
@@ -377,7 +377,7 @@ export function createCertificateUI(ctx) {
         if (!file) return;
         if (file.size > 5000000) throw new Error('Use a QR image smaller than 5 MB.');
         if (!window.jsQR)
-          throw new Error('QR reader is unavailable. Load this app online once or use the signed JSON file.');
+          throw new Error('The QR reader is not ready. Open the app while connected once, or use the proof file instead.');
         const image = await createImageBitmap(file),
           scale = Math.min(1, 2000 / image.width, 2000 / image.height),
           canvas = document.createElement('canvas');
@@ -408,7 +408,7 @@ export function createCertificateUI(ctx) {
         if (file.size > 90000) throw new Error('Use a status snapshot smaller than 90 KB.');
         const envelope = JSON.parse(await file.text()),
           result = await verifyWithdrawalList(envelope, settings().keys);
-        if (!result.valid) throw new Error(result.reason);
+        if (!result.valid) throw new Error(displayCertificateResult(result.reason));
         const prior = [...settings().statusLists, ...localStatus].filter(
           row => row.payload.issuerId === envelope.payload.issuerId
         );
@@ -422,7 +422,7 @@ export function createCertificateUI(ctx) {
               )
           )
         )
-          throw new Error('An older or incomplete snapshot cannot replace the information already available.');
+          throw new Error('This list is older or is missing known cancellations. Ask for an updated signed list.');
         localStatus.push(envelope);
         try {
           await ctx.rawApi('/certificates/status/import', 'POST', { envelope });
@@ -431,13 +431,13 @@ export function createCertificateUI(ctx) {
         } catch (error) {
           if (error.status === 403) {
             toast(
-              'Verified snapshot attached to this review. Only a supervisor or administrator can update the shared status cache.'
+              'This signed list will be saved with your check. Only a supervisor or administrator can update the list shared by your team.'
             );
           } else if (error.status && error.status < 500) {
             localStatus = localStatus.filter(row => row !== envelope);
             await ctx.refresh();
             throw error;
-          } else toast('Verified snapshot attached to this review. It will be checked again when the review syncs.');
+          } else toast('The signed list is attached. The server will check it again when you send this record.');
         }
         if (inputText) await verify();
       } catch (error) {
